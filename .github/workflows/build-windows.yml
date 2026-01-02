@@ -21,14 +21,16 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
 
       - name: Install dependencies
         shell: pwsh
         run: |
-          python -m pip install --upgrade pip wheel setuptools
-          pip install pyinstaller
-          # 你的 main.py / spec 用到的依赖（没有 requirements.txt 的情况下用这份）
-          pip install requests keyboard pynput infi.systray pycaw comtypes pywin32
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # 关键：PyInstaller 写入/转换 icon 需要 Pillow
+          pip install pillow
 
       - name: Build with PyInstaller spec
         shell: pwsh
@@ -42,7 +44,6 @@ jobs:
         run: |
           $exe = "dist\main.exe"
           if (!(Test-Path $exe)) { throw "Expected $exe not found. Check spec name='main'." }
-
           New-Item -ItemType Directory -Force -Path out | Out-Null
           Copy-Item $exe -Destination "out\SkiHide.exe" -Force
           Compress-Archive -Path "out\SkiHide.exe" -DestinationPath "out\SkiHide-windows.zip" -Force
