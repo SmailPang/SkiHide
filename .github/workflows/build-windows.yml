@@ -19,6 +19,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 统一提取版本号：push tag / release / 手动运行
+      - name: Resolve version
+        id: ver
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "release") {
+            $v = "${{ github.event.release.tag_name }}"
+          } elseif ("${{ github.ref_type }}" -eq "tag") {
+            $v = "${{ github.ref_name }}"
+          } else {
+            # 手动 workflow_dispatch 没有 tag：给一个可识别的版本名
+            $v = "dev-${{ github.run_number }}"
+          }
+          "VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Resolved VERSION=$v"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -40,38 +56,47 @@ jobs:
           if (!(Test-Path "dist")) { throw "dist folder not found" }
           Get-ChildItem -Recurse dist
 
-      - name: Prepare artifact (zip)
+      - name: Prepare versioned artifacts
         shell: pwsh
         run: |
           $exe = "dist\main.exe"
           if (!(Test-Path $exe)) { throw "Expected $exe not found. Check spec name='main'." }
+
           New-Item -ItemType Directory -Force -Path out | Out-Null
-          Copy-Item $exe -Destination "out\SkiHide.exe" -Force
-          Compress-Archive -Path "out\SkiHide.exe" -DestinationPath "out\SkiHide-windows.zip" -Force
+
+          $version = "${env:VERSION}"
+          $exeOut = "out\SkiHide-$version.exe"
+          $zipOut = "out\SkiHide-$version-windows.zip"
+
+          Copy-Item $exe -Destination $exeOut -Force
+          Compress-Archive -Path $exeOut -DestinationPath $zipOut -Force
+
+          Write-Host "Artifacts:"
+          Get-ChildItem out
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SkiHide-windows
+          name: SkiHide-windows-${{ env.VERSION }}
           path: |
-            out/SkiHide.exe
-            out/SkiHide-windows.zip
+            out/*.exe
+            out/*.zip
 
-      # ① 如果是“tag push”触发：创建/更新 Release 并上传附件
+      # tag push：创建/更新 Release 并上传带版本号的文件
       - name: Create/Update GitHub Release (tag push)
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            out/SkiHide.exe
-            out/SkiHide-windows.zip
+            out/*.exe
+            out/*.zip
 
-      # ② 如果是“网页发布 Release”触发：上传附件到当前 Release
+      # 网页发布 Release：上传带版本号的文件到当前 Release
       - name: Upload assets to existing Release (web published)
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
           upload_url: ${{ github.event.release.upload_url }}
           files: |
-            out/SkiHide.exe
-            out/SkiHide-windows.zip
+            out/*.exe
+            out/*.zip
