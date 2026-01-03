@@ -141,6 +141,11 @@ class SkiHideApp:
         # 启动更新检查
         threading.Thread(target=self.check_for_updates, daemon=True).start()
 
+        # keyboard 相关句柄（避免 unhook_all 误伤）
+        self.hotkey_handle = None      # add_hotkey 返回的句柄
+        self.record_hook = None        # keyboard.hook 返回的句柄
+        self.was_listening_before_record = False
+
     # ==================== 首次启动隐私政策 ====================
     def read_config_safely(self):
         """安全读取配置：失败则返回空 dict"""
@@ -421,30 +426,52 @@ class SkiHideApp:
         if self.recording_hotkey:
             return
 
+        # 如果正在监听，先暂时停掉（避免录制时误触发）
+        self.was_listening_before_record = bool(self.listener)
+        if self.was_listening_before_record:
+            # 只移除自己的热键，不要 unhook_all
+            if self.hotkey_handle is not None:
+                try:
+                    keyboard.remove_hotkey(self.hotkey_handle)
+                except Exception:
+                    pass
+                self.hotkey_handle = None
+
         self.recording_hotkey = True
         self.hotkey_entry.delete(0, tk.END)
         self.hotkey_entry.insert(0, "请按组合键...")
         self.hotkey_entry.after(100, self.listen_for_hotkey)
 
     def listen_for_hotkey(self):
-        keyboard.unhook_all()
+        # 只卸载“录制用 hook”，不要 unhook_all
+        if self.record_hook is not None:
+            try:
+                keyboard.unhook(self.record_hook)
+            except Exception:
+                pass
+            self.record_hook = None
+
         recorded_keys = []
         self.modifier_keys.clear()
 
         def on_press(event):
-            nonlocal recorded_keys
             name = event.name
 
-            if name in ['ctrl', 'alt', 'shift', 'windows']:
+            # 修正 win 键命名（keyboard 更常用 win）
+            if name in ['windows']:
+                name = 'win'
+
+            if name in ['ctrl', 'alt', 'shift', 'win']:
                 self.modifier_keys.add(name)
                 return
 
+            # 规范化按键名
             if name == 'space':
                 name = 'space'
             elif len(name) > 1 and name not in ['enter', 'tab', 'esc', 'backspace']:
                 name = name.lower()
 
-            if name not in self.modifier_keys:
+            if name not in recorded_keys:
                 recorded_keys.append(name)
 
             combo = list(self.modifier_keys) + recorded_keys
@@ -457,12 +484,29 @@ class SkiHideApp:
 
             self.save_config()
 
-            keyboard.unhook_all()
+            # 结束录制：卸载录制 hook
+            if self.record_hook is not None:
+                try:
+                    keyboard.unhook(self.record_hook)
+                except Exception:
+                    pass
+                self.record_hook = None
+
             self.modifier_keys.clear()
             self.recording_hotkey = False
+
+            # 如果录制前在监听，录制完成后自动恢复监听（注册新热键）
+            if self.was_listening_before_record:
+                try:
+                    self.hotkey_handle = keyboard.add_hotkey(self.hotkey, self.toggle_window)
+                    logger.info(f"录制完成，已自动恢复监听并注册快捷键: {self.hotkey}")
+                except Exception:
+                    logger.error(f"自动恢复监听失败: {traceback.format_exc()}")
+
+            self.was_listening_before_record = False
             self.root.focus()
 
-        keyboard.hook(on_press)
+        self.record_hook = keyboard.hook(on_press)
 
     def toggle_listener(self):
         if not self.hotkey and not self.use_mouse_var.get():
@@ -471,11 +515,20 @@ class SkiHideApp:
 
         if not self.listener:
             try:
-                keyboard.unhook_all()
+                # 启动监听：先清理旧的热键句柄（只清理自己的）
+                if self.hotkey_handle is not None:
+                    try:
+                        keyboard.remove_hotkey(self.hotkey_handle)
+                    except Exception:
+                        pass
+                    self.hotkey_handle = None
+
+                # 注册快捷键
                 if self.hotkey:
-                    keyboard.add_hotkey(self.hotkey, self.toggle_window)
+                    self.hotkey_handle = keyboard.add_hotkey(self.hotkey, self.toggle_window)
                     logger.info(f"已注册快捷键: {self.hotkey}")
 
+                # 鼠标侧键
                 if self.use_mouse_var.get():
                     self.start_mouse_listener()
 
@@ -485,10 +538,22 @@ class SkiHideApp:
                 messagebox.showerror("错误", f"快捷键注册失败: {str(e)}")
                 logger.error(f"快捷键注册失败: {traceback.format_exc()}")
         else:
-            keyboard.unhook_all()
+            # 停止监听：只移除自己的热键
+            if self.hotkey_handle is not None:
+                try:
+                    keyboard.remove_hotkey(self.hotkey_handle)
+                except Exception:
+                    pass
+                self.hotkey_handle = None
+
+            # 停止鼠标监听
             if self.mouse_listener:
-                self.mouse_listener.stop()
+                try:
+                    self.mouse_listener.stop()
+                except Exception:
+                    pass
                 self.mouse_listener = None
+
             self.listener = None
             self.start_btn.config(text="开始监听")
             logger.info("已停止所有监听")
@@ -689,8 +754,19 @@ class SkiHideApp:
         try:
             self.save_config()
 
-            if self.listener:
-                keyboard.unhook_all()
+            if self.hotkey_handle is not None:
+                try:
+                    keyboard.remove_hotkey(self.hotkey_handle)
+                except Exception:
+                    pass
+                self.hotkey_handle = None
+
+            if self.record_hook is not None:
+                try:
+                    keyboard.unhook(self.record_hook)
+                except Exception:
+                    pass
+                self.record_hook = None
             if self.mouse_listener:
                 self.mouse_listener.stop()
 
