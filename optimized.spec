@@ -32,7 +32,7 @@ a = Analysis(
         'sqlite3', 'mysql', 'postgresql', 'psycopg2', 'sqlalchemy',
         
         # 排除图像处理库
-        'PIL', 'cv2', 'imageio', 'scikit-image',
+        'cv2', 'imageio', 'scikit-image',
         
         # 排除音频处理库（除了pycaw）
         'audioop', 'sounddevice', 'soundfile', 'librosa',
