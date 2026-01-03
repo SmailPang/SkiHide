@@ -10,7 +10,7 @@ import time
 import webbrowser
 from pycaw.pycaw import AudioUtilities
 
-# 定义Windows API常量
+# ===================== Windows API 常量 =====================
 WM_APPCOMMAND = 0x319
 APPCOMMAND_VOLUME_MUTE = 0x80000
 APPCOMMAND_VOLUME_UP = 0xA0000
@@ -19,7 +19,7 @@ VK_VOLUME_MUTE = 0xAD
 VK_VOLUME_UP = 0xAF
 VK_VOLUME_DOWN = 0xAE
 
-# 提权必须放最前面
+# ===================== 提权（必须放最前面） =====================
 if sys.platform == 'win32':
     try:
         if ctypes.windll.shell32.IsUserAnAdmin() == 0:
@@ -31,7 +31,7 @@ if sys.platform == 'win32':
         print("权限提升失败:", e)
         sys.exit(1)
 
-# 设置日志系统
+# ===================== 日志系统 =====================
 log_file = "log.txt"
 if os.path.exists(log_file):
     with open(log_file, 'w'):
@@ -53,8 +53,10 @@ import win32gui
 import win32con
 import win32process
 import keyboard
-from infi.systray import SysTrayIcon
 from pynput import mouse
+import pystray
+from pystray import MenuItem as item
+from PIL import Image
 
 logger = logging.getLogger()
 
@@ -84,8 +86,11 @@ class SkiHideApp:
         self.listener = None
         self.mouse_listener = None
         self.hidden_windows = {}
+
+        # ✅ pystray 托盘对象
         self.tray_icon = None
         self.tray_thread = None
+
         self.recording_hotkey = False
         self.modifier_keys = set()
         self.mute_after_hide = False
@@ -197,7 +202,7 @@ class SkiHideApp:
             else:
                 logger.info("用户拒绝隐私政策与免责说明，程序退出")
                 return False
-        except Exception as e:
+        except Exception:
             logger.error(f"隐私政策检查异常: {traceback.format_exc()}")
             messagebox.showerror("SkiHide", "隐私政策确认流程发生错误，程序将退出。\n请查看 log.txt")
             return False
@@ -213,7 +218,7 @@ class SkiHideApp:
         )
         try:
             messagebox.showinfo("SkiHide - 问题反馈", tip)
-            webbrowser.open(url, new=2)  # new=2 尽量用新标签页
+            webbrowser.open(url, new=2)
         except Exception as e:
             messagebox.showerror("错误", f"打开反馈页面失败: {str(e)}")
             logger.error(f"打开反馈页面失败: {traceback.format_exc()}")
@@ -221,17 +226,12 @@ class SkiHideApp:
     # ==================== UI ====================
     def create_widgets(self):
         """创建界面组件"""
-        # 创建菜单栏
         self.menu_bar = tk.Menu(self.root)
         self.root.config(menu=self.menu_bar)
 
-        # 菜单项：设置
         self.menu_bar.add_command(label="设置", command=self.open_settings)
-
-        # 菜单项：问题反馈（新增）
         self.menu_bar.add_command(label="问题反馈", command=self.open_feedback)
 
-        # 如果是开发模式，添加开发者菜单
         if self.is_debug:
             dev_menu = tk.Menu(self.menu_bar, tearoff=0)
             self.menu_bar.add_cascade(label="开发者", menu=dev_menu)
@@ -240,26 +240,21 @@ class SkiHideApp:
             dev_menu.add_command(label="刷新日志", command=self.refresh_log)
             dev_menu.add_command(label="查看系统信息", command=self.show_system_info)
 
-        # 创建主框架
         main_frame = ttk.Frame(self.root, padding=10)
         main_frame.grid(row=0, column=0, sticky="nsew")
 
-        # 窗口列表
         ttk.Label(main_frame, text="已打开的窗口:").grid(row=0, column=0, sticky="w")
         self.window_list = tk.Listbox(main_frame, width=50, height=15)
         self.window_list.grid(row=1, column=0, columnspan=2, pady=5)
 
-        # 刷新按钮
         self.refresh_btn = ttk.Button(main_frame, text="刷新列表", command=self.populate_window_list)
         self.refresh_btn.grid(row=2, column=0, pady=5, sticky="ew")
 
-        # 快捷键设置
         ttk.Label(main_frame, text="设置快捷键:").grid(row=3, column=0, sticky="w")
         self.hotkey_entry = ttk.Entry(main_frame, width=20)
         self.hotkey_entry.grid(row=3, column=1, padx=5, sticky="ew")
         self.hotkey_entry.bind("<FocusIn>", self.start_hotkey_recording)
 
-        # 鼠标侧键复选框（默认不勾选）
         self.use_mouse_var = tk.BooleanVar(value=False)
         self.use_mouse_checkbox = ttk.Checkbutton(
             main_frame,
@@ -269,17 +264,14 @@ class SkiHideApp:
         )
         self.use_mouse_checkbox.grid(row=4, column=0, sticky="w", pady=(5, 0))
 
-        # 开始/停止监听按钮
         self.start_btn = ttk.Button(main_frame, text="开始监听", command=self.toggle_listener)
         self.start_btn.grid(row=5, column=0, columnspan=2, pady=10, sticky="ew")
 
     def test_crash(self):
-        """测试崩溃功能"""
         logger.info("开始测试崩溃功能...")
         try:
             raise Exception("测试程序崩溃")
         except Exception as e:
-            root = self.root
             error_msg = f"程序意外崩溃: {str(e)}"
             logger.critical(f"程序崩溃: {traceback.format_exc()}")
 
@@ -298,8 +290,7 @@ class SkiHideApp:
                 f"崩溃时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
                 f"错误信息: {str(e)}"
             )
-
-            root.destroy()
+            self.root.destroy()
             os._exit(1)
 
     def refresh_log(self):
@@ -321,20 +312,36 @@ class SkiHideApp:
         self.root.protocol('WM_DELETE_WINDOW', self.on_close)
         self.root.bind("<Unmap>", self.on_minimize)
 
+    # ==================== ✅ 托盘：pystray（全中文） ====================
     def setup_tray_icon(self):
-        """创建系统托盘图标"""
+        """创建系统托盘图标（pystray：支持全中文菜单，无默认 Quit）"""
         try:
-            menu_options = (
-                ("显示主界面", None, self.restore_window),
-                ("退出程序", None, self.quit_app)
+            icon_path = resource_path("icon.ico")
+            image = Image.open(icon_path)
+
+            def on_show(icon, _item):
+                self.root.after(0, self._restore_window)
+
+            def on_exit(icon, _item):
+                self.root.after(0, self.quit_app)
+
+            menu = pystray.Menu(
+                item("显示主界面", on_show),
+                item("退出程序", on_exit),
             )
-            icon_path = resource_path('icon.ico')
-            self.tray_icon = SysTrayIcon(icon_path, "SkiHide", menu_options)
-            self.tray_icon._double_click_left = self.restore_window
+
+            self.tray_icon = pystray.Icon("SkiHide", image, "SkiHide", menu)
+
+            # run() 会阻塞，放线程常驻
+            if not self.tray_thread or not self.tray_thread.is_alive():
+                self.tray_thread = threading.Thread(target=self.tray_icon.run, daemon=True)
+                self.tray_thread.start()
+
         except Exception as e:
             messagebox.showerror("错误", f"托盘图标创建失败: {str(e)}")
             logger.error(f"托盘图标创建失败: {traceback.format_exc()}")
 
+    # ==================== 窗口列表 ====================
     def populate_window_list(self):
         self.window_list.delete(0, tk.END)
 
@@ -420,14 +427,13 @@ class SkiHideApp:
         win32gui.EnumWindows(enum_callback, None)
         logger.debug("已刷新窗口列表")
 
+    # ==================== 热键录制 ====================
     def start_hotkey_recording(self, event=None):
         if self.recording_hotkey:
             return
 
-        # 如果正在监听，先暂时停掉（避免录制时误触发）
         self.was_listening_before_record = bool(self.listener)
         if self.was_listening_before_record:
-            # 只移除自己的热键，不要 unhook_all
             if self.hotkey_handle is not None:
                 try:
                     keyboard.remove_hotkey(self.hotkey_handle)
@@ -441,7 +447,6 @@ class SkiHideApp:
         self.hotkey_entry.after(100, self.listen_for_hotkey)
 
     def listen_for_hotkey(self):
-        # 只卸载“录制用 hook”，不要 unhook_all
         if self.record_hook is not None:
             try:
                 keyboard.unhook(self.record_hook)
@@ -454,8 +459,6 @@ class SkiHideApp:
 
         def on_press(event):
             name = event.name
-
-            # 修正 win 键命名（keyboard 更常用 win）
             if name in ['windows']:
                 name = 'win'
 
@@ -463,7 +466,6 @@ class SkiHideApp:
                 self.modifier_keys.add(name)
                 return
 
-            # 规范化按键名
             if name == 'space':
                 name = 'space'
             elif len(name) > 1 and name not in ['enter', 'tab', 'esc', 'backspace']:
@@ -482,7 +484,6 @@ class SkiHideApp:
 
             self.save_config()
 
-            # 结束录制：卸载录制 hook
             if self.record_hook is not None:
                 try:
                     keyboard.unhook(self.record_hook)
@@ -493,7 +494,6 @@ class SkiHideApp:
             self.modifier_keys.clear()
             self.recording_hotkey = False
 
-            # 如果录制前在监听，录制完成后自动恢复监听（注册新热键）
             if self.was_listening_before_record:
                 try:
                     self.hotkey_handle = keyboard.add_hotkey(self.hotkey, self.toggle_window)
@@ -506,6 +506,7 @@ class SkiHideApp:
 
         self.record_hook = keyboard.hook(on_press)
 
+    # ==================== 监听开关 ====================
     def toggle_listener(self):
         if not self.hotkey and not self.use_mouse_var.get():
             messagebox.showerror("错误", "请先设置快捷键或启用鼠标侧键")
@@ -513,7 +514,6 @@ class SkiHideApp:
 
         if not self.listener:
             try:
-                # 启动监听：先清理旧的热键句柄（只清理自己的）
                 if self.hotkey_handle is not None:
                     try:
                         keyboard.remove_hotkey(self.hotkey_handle)
@@ -521,12 +521,10 @@ class SkiHideApp:
                         pass
                     self.hotkey_handle = None
 
-                # 注册快捷键
                 if self.hotkey:
                     self.hotkey_handle = keyboard.add_hotkey(self.hotkey, self.toggle_window)
                     logger.info(f"已注册快捷键: {self.hotkey}")
 
-                # 鼠标侧键
                 if self.use_mouse_var.get():
                     self.start_mouse_listener()
 
@@ -536,7 +534,6 @@ class SkiHideApp:
                 messagebox.showerror("错误", f"快捷键注册失败: {str(e)}")
                 logger.error(f"快捷键注册失败: {traceback.format_exc()}")
         else:
-            # 停止监听：只移除自己的热键
             if self.hotkey_handle is not None:
                 try:
                     keyboard.remove_hotkey(self.hotkey_handle)
@@ -544,7 +541,6 @@ class SkiHideApp:
                     pass
                 self.hotkey_handle = None
 
-            # 停止鼠标监听
             if self.mouse_listener:
                 try:
                     self.mouse_listener.stop()
@@ -566,6 +562,7 @@ class SkiHideApp:
         self.mouse_listener.start()
         logger.info("鼠标侧键监听已启用")
 
+    # ==================== 窗口隐藏/恢复 ====================
     def toggle_window(self):
         selection = self.window_list.curselection()
         if not selection:
@@ -593,7 +590,6 @@ class SkiHideApp:
                 try:
                     current_mute = self.volume.GetMute()
                     current_volume = self.volume.GetMasterVolumeLevelScalar()
-
                     self.original_muted_state = current_mute
 
                     if not current_mute and current_volume > 0.0:
@@ -606,6 +602,7 @@ class SkiHideApp:
                 except Exception as e:
                     logger.error(f"关闭声音失败: {str(e)}")
 
+    # ==================== 最小化/关闭行为 ====================
     def on_minimize(self, event):
         if self.root.state() == 'iconic':
             self.minimize_to_tray()
@@ -617,18 +614,11 @@ class SkiHideApp:
             self.minimize_to_tray()
 
     def minimize_to_tray(self):
-        if self.tray_icon:
-            self.root.withdraw()
-            self.start_tray_thread()
-            logger.info("主窗口已最小化到托盘")
+        # pystray 常驻线程已经在 setup_tray_icon 里启动了，这里只需要隐藏窗口
+        self.root.withdraw()
+        logger.info("主窗口已最小化到托盘")
 
-    def start_tray_thread(self):
-        if self.tray_icon and not self.tray_thread:
-            self.tray_thread = threading.Thread(target=self.tray_icon.start, daemon=True)
-            self.tray_thread.start()
-            logger.debug("托盘线程已启动")
-
-    def restore_window(self, systray=None):
+    def restore_window(self, *args, **kwargs):
         self.root.after(0, self._restore_window)
 
     def _restore_window(self):
@@ -703,9 +693,6 @@ class SkiHideApp:
         self.settings_window.destroy()
         logger.info("设置已取消")
 
-    def on_mute_setting_change(self):
-        pass
-
     # ==================== 配置读写（不会丢字段） ====================
     def load_config(self):
         try:
@@ -728,7 +715,7 @@ class SkiHideApp:
         except IOError as e:
             logger.error(f"配置文件读取失败: {str(e)}")
             self.mute_after_hide = False
-        except Exception as e:
+        except Exception:
             logger.error(f"配置加载异常: {traceback.format_exc()}")
             self.mute_after_hide = False
 
@@ -745,10 +732,11 @@ class SkiHideApp:
             })
             self.write_config_safely(config)
             logger.info("配置保存成功")
-        except Exception as e:
+        except Exception:
             logger.error(f"配置保存异常: {traceback.format_exc()}")
 
-    def quit_app(self, systray=None):
+    # ==================== 退出 ====================
+    def quit_app(self, *args, **kwargs):
         try:
             self.save_config()
 
@@ -765,16 +753,26 @@ class SkiHideApp:
                 except Exception:
                     pass
                 self.record_hook = None
-            if self.mouse_listener:
-                self.mouse_listener.stop()
 
-            if self.tray_icon:
+            if self.mouse_listener:
+                try:
+                    self.mouse_listener.stop()
+                except Exception:
+                    pass
+                self.mouse_listener = None
+
+            # ✅ 停止 pystray 托盘
+            try:
+                if self.tray_icon:
+                    self.tray_icon.stop()
+                    self.tray_icon = None
+            except Exception:
                 pass
 
             self.root.destroy()
             logger.info("程序正常退出")
             sys.exit(0)
-        except Exception as e:
+        except Exception:
             logger.critical(f"强制退出程序: {traceback.format_exc()}")
             os._exit(1)
 
@@ -790,13 +788,15 @@ class SkiHideApp:
             if self.compare_builds(data.get('build', 0)):
                 new_version = data['version']
                 new_build = data.get('build', 0)
-                logger.info(f"发现新版本 {new_version}-build{new_build}，当前版本 {self.current_version}-build{self.current_build}")
+                logger.info(
+                    f"发现新版本 {new_version}-build{new_build}，当前版本 {self.current_version}-build{self.current_build}"
+                )
                 self.show_update_dialog(data)
             else:
                 logger.info("当前已是最新版本")
         except requests.exceptions.RequestException as e:
             logger.warning(f"更新检查失败: {str(e)}")
-        except Exception as e:
+        except Exception:
             logger.error(f"更新处理异常: {traceback.format_exc()}")
 
     def compare_builds(self, new_build):
@@ -867,8 +867,6 @@ del "%~f0"
 
 def get_system_info():
     import platform
-    import sys
-    import os
     import psutil
 
     try:
@@ -996,7 +994,9 @@ if __name__ == "__main__":
                     sys.stderr = open('CONERR$', 'w', encoding='utf-8')
                     console_handler = logging.StreamHandler(sys.stdout)
                     console_handler.setLevel(logging.DEBUG)
-                    console_handler.setFormatter(logging.Formatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
+                    console_handler.setFormatter(
+                        logging.Formatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+                    )
                     logger.addHandler(console_handler)
                 logger.info("开发模式启动 - 控制台窗口已显示")
             else:
