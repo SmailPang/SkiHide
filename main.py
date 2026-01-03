@@ -179,7 +179,7 @@ class SkiHideApp:
             if config.get("privacy_accepted") is True:
                 return True
 
-            url = "https://flvsrttb.cn-nb1.rainapp.top/guide/privacy"
+            url = "https://skihide.xyz/guide/privacy"
             msg = (
                 "在使用 SkiHide 前，请您务必阅读并同意《隐私政策与免责说明》。\n\n"
                 "请前往以下链接查看：\n"
