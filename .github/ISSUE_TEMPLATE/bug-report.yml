@@ -1,0 +1,73 @@
+name: 🐞 Bug 反馈
+description: 提交一个 SkiHide 的 Bug 报告
+title: "[Bug] "
+labels:
+  - bug
+
+body:
+  - type: checkboxes
+    attributes:
+      label: 检查项（请认真阅读）
+      description: |
+        以下内容为提交前确认项。
+      options:
+        - label: 我已在 Issues 页面 中搜索，确认了这一问题未在社区中被提交过
+        - label: 我确认如果我只是未认真阅读而直接勾选所有选项并提交 Issue，本 Issue 可以被维护者直接关闭
+        - label: 我确认我所描述的问题是现实存在、可验证的，而不是我临时起意或缺乏依据的猜测
+        - label: 我已知悉社区不对 Issue 的处理时间作出任何保证，并理解催促、质问或施压行为可能导致 Issue 被直接关闭
+
+  - type: input
+    attributes:
+      label: 软件版本
+      placeholder: 例如 v1.3.6
+    validations:
+      required: true
+
+  - type: dropdown
+    attributes:
+      label: Windows 版本
+      options:
+        - Windows 11
+        - Windows 10
+        - Windows 8 / 8.1
+        - Windows 7（不保证支持）
+        - 其他（请在下方补充）
+    validations:
+      required: true
+      
+  - type: dropdown
+    attributes:
+      label: 是否可以稳定复现？
+      options:
+        - 可以稳定复现（100%）
+        - 偶发
+        - 只出现过一次
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Bug 描述
+      description: 请描述发生了什么问题
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: 复现过程
+      description: 请提供可复现该问题的完整步骤
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: log.txt 完整内容
+      description: |
+        请粘贴 log.txt 的完整内容（建议使用 ```text ``` 包裹）
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: 额外信息（可选）
+      description: 截图、录屏、是否管理员运行、双屏环境等
