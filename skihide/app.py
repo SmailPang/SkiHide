@@ -8,6 +8,7 @@ import logging
 import threading
 import traceback
 import webbrowser
+import winreg
 import requests
 
 import tkinter as tk
@@ -48,6 +49,13 @@ class SkiHideApp:
         self.recording_hotkey = False
         self.modifier_keys = set()
         self.mute_after_hide = False
+        # Settings: autostart & scheduled memory cleaning
+        self.autostart_enabled = False
+        self.mem_clean_enabled = False
+        self.mem_clean_value = 30
+        self.mem_clean_unit = "分钟"
+        self._mem_clean_after_id = None
+
 
         # Audio
         self.is_muted = False
@@ -116,6 +124,78 @@ class SkiHideApp:
         except Exception as e:
             logger.error(f"写入配置失败: {str(e)}")
             return False
+
+    # -------- autostart (Windows) --------
+    def _get_autostart_command(self) -> str:
+        """Return command used for Windows autostart."""
+        exe_path = sys.executable
+        # Ensure quoted for spaces
+        if " " in exe_path and not (exe_path.startswith('"') and exe_path.endswith('"')):
+            exe_path = f'"{exe_path}"'
+        return exe_path
+
+    def set_autostart(self, enabled: bool):
+        """Enable/disable autostart via HKCU\...\Run."""
+        if sys.platform != "win32":
+            raise RuntimeError("开机自启动仅支持 Windows")
+        name = "SkiHide"
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
+            if enabled:
+                winreg.SetValueEx(key, name, 0, winreg.REG_SZ, self._get_autostart_command())
+            else:
+                try:
+                    winreg.DeleteValue(key, name)
+                except FileNotFoundError:
+                    pass
+
+    # -------- scheduled memory cleaning --------
+    def _mem_clean_interval_ms(self) -> int:
+        value = int(getattr(self, "mem_clean_value", 30) or 30)
+        value = max(1, min(999, value))
+        unit = getattr(self, "mem_clean_unit", "分钟")
+        if unit == "小时":
+            return value * 60 * 60 * 1000
+        return value * 60 * 1000
+
+    def apply_memory_clean_scheduler(self):
+        """Start/stop the periodic memory cleaning based on current settings."""
+        # cancel existing schedule
+        try:
+            if getattr(self, "_mem_clean_after_id", None):
+                self.root.after_cancel(self._mem_clean_after_id)
+        except Exception:
+            pass
+        self._mem_clean_after_id = None
+
+        if not getattr(self, "mem_clean_enabled", False):
+            return
+
+        interval = self._mem_clean_interval_ms()
+        # Schedule first tick after interval (avoid doing heavy work immediately on enabling)
+        self._mem_clean_after_id = self.root.after(interval, self._mem_clean_tick)
+
+    def _mem_clean_tick(self):
+        """One tick: run memory cleaning in background and reschedule."""
+        def worker():
+            try:
+                cleaned, failed = clean_memory_working_set(logger)
+                logger.info(f"定时清理内存完成：成功 {cleaned}，失败/跳过 {failed}")
+            except Exception:
+                logger.error(f"定时清理内存失败: {traceback.format_exc()}")
+
+        try:
+            threading.Thread(target=worker, daemon=True).start()
+        except Exception:
+            logger.error(f"启动清理线程失败: {traceback.format_exc()}")
+
+        # reschedule
+        try:
+            interval = self._mem_clean_interval_ms()
+            self._mem_clean_after_id = self.root.after(interval, self._mem_clean_tick)
+        except Exception:
+            self._mem_clean_after_id = None
+
 
     def check_privacy_policy(self):
         try:
@@ -550,7 +630,7 @@ class SkiHideApp:
     def open_settings(self):
         self.settings_window = tk.Toplevel(self.root)
         self.settings_window.title("设置")
-        self.settings_window.geometry("350x200")
+        self.settings_window.geometry("420x320")
         self.settings_window.resizable(False, False)
 
         self.settings_window.transient(self.root)
@@ -559,14 +639,48 @@ class SkiHideApp:
         settings_frame = ttk.Frame(self.settings_window, padding=20)
         settings_frame.grid(row=0, column=0, sticky="nsew")
 
-        ttk.Label(settings_frame, text="隐藏后关闭声音:").grid(row=0, column=0, sticky="w", pady=10, padx=(0, 20))
+        # ---- 1) Mute after hide ----
+        ttk.Label(settings_frame, text="隐藏后关闭声音:").grid(row=0, column=0, sticky="w", pady=8, padx=(0, 20))
 
-        self.temp_mute_after_hide = self.mute_after_hide
+        self.temp_mute_after_hide = getattr(self, "mute_after_hide", False)
         self.mute_after_hide_var = tk.BooleanVar(value=self.temp_mute_after_hide)
-
         self.mute_after_hide_switch = ttk.Checkbutton(settings_frame, variable=self.mute_after_hide_var)
         self.mute_after_hide_switch.grid(row=0, column=1, sticky="w")
 
+        # ---- 2) Autostart ----
+        ttk.Label(settings_frame, text="开机自启动:").grid(row=1, column=0, sticky="w", pady=8, padx=(0, 20))
+        self.autostart_var = tk.BooleanVar(value=getattr(self, "autostart_enabled", False))
+        self.autostart_switch = ttk.Checkbutton(settings_frame, variable=self.autostart_var)
+        self.autostart_switch.grid(row=1, column=1, sticky="w")
+
+        # ---- 3) Scheduled memory cleaning ----
+        ttk.Label(settings_frame, text="定时清理内存:").grid(row=2, column=0, sticky="w", pady=8, padx=(0, 20))
+        self.mem_clean_enabled_var = tk.BooleanVar(value=getattr(self, "mem_clean_enabled", False))
+        self.mem_clean_enabled_chk = ttk.Checkbutton(
+            settings_frame,
+            variable=self.mem_clean_enabled_var,
+            command=self._on_mem_clean_toggle
+        )
+        self.mem_clean_enabled_chk.grid(row=2, column=1, sticky="w")
+
+        # interval row
+        interval_frame = ttk.Frame(settings_frame)
+        interval_frame.grid(row=3, column=0, columnspan=2, sticky="w", pady=(2, 10))
+
+        ttk.Label(interval_frame, text="清理间隔:").grid(row=0, column=0, sticky="w", padx=(0, 10))
+
+        self.mem_clean_value_var = tk.IntVar(value=int(getattr(self, "mem_clean_value", 30) or 30))
+        self.mem_clean_value_spin = ttk.Spinbox(interval_frame, from_=1, to=999, textvariable=self.mem_clean_value_var, width=6)
+        self.mem_clean_value_spin.grid(row=0, column=1, sticky="w", padx=(0, 10))
+
+        self.mem_clean_unit_var = tk.StringVar(value=getattr(self, "mem_clean_unit", "分钟"))
+        self.mem_clean_unit_combo = ttk.Combobox(interval_frame, textvariable=self.mem_clean_unit_var, values=["分钟", "小时"], width=6, state="readonly")
+        self.mem_clean_unit_combo.grid(row=0, column=2, sticky="w")
+
+        # apply initial enable/disable state
+        self._on_mem_clean_toggle()
+
+        # buttons
         button_frame = ttk.Frame(self.settings_window, padding=(20, 10, 20, 20))
         button_frame.grid(row=1, column=0, sticky="se")
 
@@ -576,13 +690,64 @@ class SkiHideApp:
 
         self.settings_window.protocol("WM_DELETE_WINDOW", self.cancel_settings)
 
+
+    
+    def _on_mem_clean_toggle(self):
+        """Enable/disable interval controls based on the checkbox."""
+        try:
+            enabled = bool(self.mem_clean_enabled_var.get())
+        except Exception:
+            enabled = False
+
+        state = "normal" if enabled else "disabled"
+        try:
+            self.mem_clean_value_spin.configure(state=state)
+        except Exception:
+            pass
+        try:
+            self.mem_clean_unit_combo.configure(state=("readonly" if enabled else "disabled"))
+        except Exception:
+            pass
     def save_settings(self):
         self.apply_settings()
         self.settings_window.destroy()
 
     def apply_settings(self):
+        # 1) UI settings
         self.mute_after_hide = self.mute_after_hide_var.get()
+
+        # 2) Autostart
+        self.autostart_enabled = bool(getattr(self, "autostart_var", tk.BooleanVar(value=False)).get())
+
+        # 3) Scheduled memory cleaning
+        self.mem_clean_enabled = bool(getattr(self, "mem_clean_enabled_var", tk.BooleanVar(value=False)).get())
+        try:
+            self.mem_clean_value = int(getattr(self, "mem_clean_value_var", tk.IntVar(value=30)).get())
+        except Exception:
+            self.mem_clean_value = 30
+        self.mem_clean_value = max(1, min(999, int(self.mem_clean_value)))
+
+        unit = str(getattr(self, "mem_clean_unit_var", tk.StringVar(value="分钟")).get() or "分钟")
+        if unit not in ("分钟", "小时"):
+            unit = "分钟"
+        self.mem_clean_unit = unit
+
+        # persist
         self.save_config()
+
+        # apply autostart immediately
+        try:
+            self.set_autostart(self.autostart_enabled)
+        except Exception as e:
+            logger.error(f"开机自启动设置失败: {traceback.format_exc()}")
+            messagebox.showwarning("SkiHide", f"开机自启动设置失败：{str(e)}")
+
+        # restart scheduler
+        try:
+            self.apply_memory_clean_scheduler()
+        except Exception:
+            logger.error(f"定时清理内存调度失败: {traceback.format_exc()}")
+
 
     def cancel_settings(self):
         self.settings_window.destroy()
@@ -598,6 +763,15 @@ class SkiHideApp:
             if 'use_mouse' in config:
                 self.use_mouse_var.set(config['use_mouse'])
             self.mute_after_hide = config.get('mute_after_hide', False)
+            self.autostart_enabled = bool(config.get('autostart_enabled', False))
+            self.mem_clean_enabled = bool(config.get('mem_clean_enabled', False))
+            self.mem_clean_value = int(config.get('mem_clean_value', 30) or 30)
+            self.mem_clean_unit = config.get('mem_clean_unit', "分钟") or "分钟"
+            if self.mem_clean_unit not in ("分钟", "小时"):
+                self.mem_clean_unit = "分钟"
+            # apply scheduler on startup
+            self.apply_memory_clean_scheduler()
+
         except Exception:
             logger.error(f"配置加载异常: {traceback.format_exc()}")
 
@@ -607,7 +781,11 @@ class SkiHideApp:
             config.update({
                 'hotkey': self.hotkey,
                 'use_mouse': self.use_mouse_var.get(),
-                'mute_after_hide': getattr(self, 'mute_after_hide', False)
+                'mute_after_hide': getattr(self, 'mute_after_hide', False),
+                'autostart_enabled': getattr(self, 'autostart_enabled', False),
+                'mem_clean_enabled': getattr(self, 'mem_clean_enabled', False),
+                'mem_clean_value': getattr(self, 'mem_clean_value', 30),
+                'mem_clean_unit': getattr(self, 'mem_clean_unit', '分钟')
             })
             self.write_config_safely(config)
         except Exception:
