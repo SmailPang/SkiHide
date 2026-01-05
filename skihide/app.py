@@ -29,12 +29,13 @@ from .features.toolbox import clean_memory_working_set, clean_temp_folder
 logger = logging.getLogger()
 
 class SkiHideApp:
-    def __init__(self, root, is_debug: bool = False):
+    def __init__(self, root, is_debug: bool = False, start_silent: bool = False):
         self.root = root
         self.root.title("SkiHide")
         self.current_version = "1.3.6"
         self.current_build = 26001
         self.is_debug = is_debug
+        self.start_silent = start_silent
 
         self.config_file = os.path.join(os.getcwd(), "config.json")
 
@@ -98,6 +99,12 @@ class SkiHideApp:
         self.populate_window_list()
         self.load_config()
 
+        if getattr(self, "start_silent", False):
+            try:
+                self.minimize_to_tray()
+            except Exception:
+                pass
+
         threading.Thread(target=self.check_for_updates, daemon=True).start()
 
         self.hotkey_handle = None
@@ -129,9 +136,12 @@ class SkiHideApp:
     def _get_autostart_command(self) -> str:
         """Return command used for Windows autostart."""
         exe_path = sys.executable
-        # Ensure quoted for spaces
         if " " in exe_path and not (exe_path.startswith('"') and exe_path.endswith('"')):
             exe_path = f'"{exe_path}"'
+
+        if getattr(self, "silent_start_enabled", True):
+            return f"{exe_path} --silent"
+
         return exe_path
 
     def set_autostart(self, enabled: bool):
@@ -649,23 +659,36 @@ class SkiHideApp:
 
         # ---- 2) Autostart ----
         ttk.Label(settings_frame, text="开机自启动:").grid(row=1, column=0, sticky="w", pady=8, padx=(0, 20))
+
         self.autostart_var = tk.BooleanVar(value=getattr(self, "autostart_enabled", False))
-        self.autostart_switch = ttk.Checkbutton(settings_frame, variable=self.autostart_var)
+
+        self.autostart_switch = ttk.Checkbutton(
+            settings_frame,
+            variable=self.autostart_var,
+            command=self._on_autostart_toggle
+        )
         self.autostart_switch.grid(row=1, column=1, sticky="w")
 
+        ttk.Label(settings_frame, text="静默启动:").grid(row=2, column=0, sticky="w", pady=8, padx=(0, 20))
+        self.silent_start_var = tk.BooleanVar(value=getattr(self, "silent_start_enabled", True))
+        self.silent_start_chk = ttk.Checkbutton(settings_frame, variable=self.silent_start_var)
+        self.silent_start_chk.grid(row=2, column=1, sticky="w")
+
+        self._on_autostart_toggle()
+
         # ---- 3) Scheduled memory cleaning ----
-        ttk.Label(settings_frame, text="定时清理内存:").grid(row=2, column=0, sticky="w", pady=8, padx=(0, 20))
+        ttk.Label(settings_frame, text="定时清理内存:").grid(row=3, column=0, sticky="w", pady=8, padx=(0, 20))
         self.mem_clean_enabled_var = tk.BooleanVar(value=getattr(self, "mem_clean_enabled", False))
         self.mem_clean_enabled_chk = ttk.Checkbutton(
             settings_frame,
             variable=self.mem_clean_enabled_var,
             command=self._on_mem_clean_toggle
         )
-        self.mem_clean_enabled_chk.grid(row=2, column=1, sticky="w")
+        self.mem_clean_enabled_chk.grid(row=3, column=1, sticky="w")
 
         # interval row
         interval_frame = ttk.Frame(settings_frame)
-        interval_frame.grid(row=3, column=0, columnspan=2, sticky="w", pady=(2, 10))
+        interval_frame.grid(row=4, column=0, columnspan=2, sticky="w", pady=(2, 10))
 
         ttk.Label(interval_frame, text="清理间隔:").grid(row=0, column=0, sticky="w", padx=(0, 10))
 
@@ -708,6 +731,20 @@ class SkiHideApp:
             self.mem_clean_unit_combo.configure(state=("readonly" if enabled else "disabled"))
         except Exception:
             pass
+
+    def _on_autostart_toggle(self):
+        """只有启用了开机自启动之后，静默启动才允许用户更改。"""
+        try:
+            enabled = bool(self.autostart_var.get())
+        except Exception:
+            enabled = False
+
+        state = "normal" if enabled else "disabled"
+        try:
+            self.silent_start_chk.configure(state=state)
+        except Exception:
+            pass
+
     def save_settings(self):
         self.apply_settings()
         self.settings_window.destroy()
@@ -718,6 +755,7 @@ class SkiHideApp:
 
         # 2) Autostart
         self.autostart_enabled = bool(getattr(self, "autostart_var", tk.BooleanVar(value=False)).get())
+        self.silent_start_enabled = bool(getattr(self, "silent_start_var", tk.BooleanVar(value=True)).get())
 
         # 3) Scheduled memory cleaning
         self.mem_clean_enabled = bool(getattr(self, "mem_clean_enabled_var", tk.BooleanVar(value=False)).get())
@@ -765,6 +803,7 @@ class SkiHideApp:
             self.mute_after_hide = config.get('mute_after_hide', False)
             self.autostart_enabled = bool(config.get('autostart_enabled', False))
             self.mem_clean_enabled = bool(config.get('mem_clean_enabled', False))
+            self.silent_start_enabled = bool(config.get('silent_start_enabled', True))
             self.mem_clean_value = int(config.get('mem_clean_value', 30) or 30)
             self.mem_clean_unit = config.get('mem_clean_unit', "分钟") or "分钟"
             if self.mem_clean_unit not in ("分钟", "小时"):
@@ -784,6 +823,7 @@ class SkiHideApp:
                 'mute_after_hide': getattr(self, 'mute_after_hide', False),
                 'autostart_enabled': getattr(self, 'autostart_enabled', False),
                 'mem_clean_enabled': getattr(self, 'mem_clean_enabled', False),
+                'silent_start_enabled': getattr(self, 'silent_start_enabled', True),
                 'mem_clean_value': getattr(self, 'mem_clean_value', 30),
                 'mem_clean_unit': getattr(self, 'mem_clean_unit', '分钟')
             })

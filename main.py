@@ -32,6 +32,7 @@ def main():
     logger = setup_logging("log.txt")
 
     is_debug = any(a.upper() in ["-DEBUG", "--DEBUG", "/DEBUG"] for a in sys.argv[1:])
+    is_silent = any(a.upper() in ["-SILENT", "--SILENT", "/SILENT"] for a in sys.argv[1:])
     _setup_console_visibility(is_debug, logger)
 
     logger.info("===== 程序启动 =====")
@@ -39,7 +40,7 @@ def main():
     logger.info(f"开发模式: {'是' if is_debug else '否'}")
 
     root = tk.Tk()
-    app = SkiHideApp(root, is_debug=is_debug)
+    app = SkiHideApp(root, is_debug=is_debug, start_silent=is_silent)
     root.mainloop()
 
 if __name__ == "__main__":
