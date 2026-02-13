@@ -169,7 +169,7 @@ class SkiHideApp:
         try:
             self.tray_icon, self.tray_thread = start_tray(self, logger)
         except Exception as e:
-            messagebox.showerror(t("error.error"), t("logs.tray_create_failed", error=str(e)))
+            messagebox.showerror(t("error.error"), t("error.tray_create_failed", error=str(e)))
 
         self.populate_window_list()
         self.load_config()
@@ -1093,25 +1093,18 @@ class SkiHideApp:
         # =========================================================
         try:
             self.save_config()
+
             # =========================================================
-            # 如果语言变更，询问是否重启
+            # 如果语言变更，提示用户手动重启
             # =========================================================
             if language_changed:
-                restart = messagebox.askyesno(
+                messagebox.showinfo(
                     t("settings.notice"),
                     t("settings.restart_required")
                 )
 
-                if restart:
-                    import os
-                    import sys
-                    import subprocess
-                    logger.info("用户确认重启程序")
-                    exe = sys.executable
-                    subprocess.Popen([exe])
-                    os._exit(0)
-
             logger.info("设置已保存")
+
         except Exception:
             logger.error(f"保存配置失败: {traceback.format_exc()}")
 
