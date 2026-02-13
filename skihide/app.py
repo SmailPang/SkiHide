@@ -312,7 +312,7 @@ class SkiHideApp:
 
     # -------- menu actions --------
     def open_feedback(self):
-        url = "https://github.com/Akttoer/SkiHide/issues"
+        url = "https://github.com/SmailPang/SkiHide/issues"
         tip = t("messagebox.issues")
         try:
             messagebox.showinfo(t("messagebox.issues_title"), tip)
