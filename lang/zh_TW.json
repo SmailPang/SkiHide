@@ -91,5 +91,9 @@
     "continue_title": "继续",
     "continue_message": "你选择了继续……\n（其实什么都不会发生）",
     "error_popup": "弹窗失败，请查看 log.txt"
+  },
+  "update": {
+    "title": "發現更新",
+    "found_message": "發現新版本 {version}\n\n更新內容：\n{changelog}\n\n是否立即更新？"
   }
 }

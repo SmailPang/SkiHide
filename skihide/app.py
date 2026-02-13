@@ -107,8 +107,8 @@ class SkiHideApp:
 
         self.root = root
         self.root.title("SkiHide")
-        self.current_version = "1.3.8"
-        self.current_build = 26003
+        self.current_version = "1.4.0"
+        self.current_build = 26004
         self.is_debug = is_debug
         self.start_silent = start_silent
 
@@ -1255,10 +1255,20 @@ class SkiHideApp:
             logger.warning("更新检查失败")
 
     def show_update_dialog(self, update_info):
-        new_version = update_info['version']
-        msg = f"发现新版本 {new_version}\n\n更新内容：\n{update_info.get('changelog', '')}"
-        if messagebox.askyesno("发现更新", msg + "\n\n是否立即更新？"):
-            self.start_download(update_info['download_url'])
+        new_version = update_info["version"]
+        changelog = update_info.get("changelog", "")
+
+        msg = t(
+            "update.found_message",
+            version=new_version,
+            changelog=changelog
+        )
+
+        if messagebox.askyesno(
+                t("update.title"),
+                msg
+        ):
+            self.start_download(update_info["download_url"])
 
     def start_download(self, url):
         self.update_window = tk.Toplevel(self.root)
