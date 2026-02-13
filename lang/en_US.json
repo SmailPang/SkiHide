@@ -1,0 +1,95 @@
+{
+  "meta": {
+    "name": "English",
+    "code": "en_US"
+  },
+  "app": {
+    "name": "SkiHide"
+  },
+  "menu": {
+    "settings": "Settings",
+    "feedback": "Feedback",
+    "toolbox": "Toolbox",
+    "developer": "Developer",
+    "test_crash": "Test Crash",
+    "refresh_log": "Refresh Log",
+    "system_info": "System Information"
+  },
+  "main": {
+    "window_list": "Opened Windows:",
+    "refresh": "Refresh",
+    "set_hotkey": "Set Hotkey:",
+    "use_mouse": "Use Mouse Side Button",
+    "start_listen": "Start Listening",
+    "stop_listen": "Stop Listening"
+  },
+  "settings": {
+    "notice": "Notice",
+    "title": "Settings",
+    "language": "Language:",
+    "translation_help": "Would you like to help us improve translations? Please visit ",
+    "crowdin": "Crowdin",
+    "restart_required": "Language changed. Restart the application to apply changes.",
+    "mute_after_hide": "Mute after hiding:",
+    "autostart": "Start with Windows:",
+    "silent_start": "Silent startup:",
+    "mem_clean": "Scheduled memory cleaning:",
+    "interval": "Interval:",
+    "minute": "Minute",
+    "hour": "Hour",
+    "skip_list": "Memory cleaning whitelist:",
+    "add": "Add",
+    "delete": "Delete Selected",
+    "reset": "Reset",
+    "select_running": "Select from Running",
+    "ok": "OK",
+    "apply": "Apply",
+    "cancel": "Cancel",
+    "autostart_tips": "Autostart is only supported on Windows"
+  },
+  "toolbox": {
+    "next": "Continue",
+    "tips": "These features may affect system stability. Please use with caution.",
+    "memory_cleanup": "Memory Cleaning",
+    "clear_cache": "Clear Cache",
+    "qwbd": "千万别点",
+    "clean_memory_title": "SkiHide - Memory Cleaning",
+    "clean_memory_confirm_message": "You are about to perform [Memory Cleaning].\n\nThis will attempt to reduce the working set of running processes, which may cause:\n• Temporary lag or reload in some programs\n• Rare cases of application errors or crashes\n• You can add processes to the whitelist in Settings to exclude them\n\nDo you want to continue?",
+    "clean_memory_done_title": "SkiHide - Memory Cleaning Completed",
+    "clean_memory_done_message": "Succeeded: {cleaned}\nFailed: {failed}",
+    "clean_memory_error_message": "Execution failed: {error}",
+    "clean_temp_title": "SkiHide - Clear Temporary Cache",
+    "clean_temp_confirm_message": "You are about to clean the system temporary folder (%TEMP%).\n\nThis may cause:\n• Some temporary files in use cannot be deleted (normal)\n• Some applications may rebuild cache and start slower once\n\nDo you want to continue?",
+    "clean_temp_done_title": "SkiHide - Cache Cleaning Completed",
+    "clean_temp_done_message": "Deleted files: {files}\nDeleted empty folders: {dirs}\nFailed/Skipped: {failed}",
+    "clean_temp_error_message": "Execution failed: {error}"
+  },
+  "messagebox": {
+    "privacy_title": "SkiHide - Privacy Policy & Disclaimer",
+    "privacy_notice": "Before using SkiHide, please read and agree to the Privacy Policy & Disclaimer.\n\nView it at:\n{url}\n\nClick \"Yes\" to agree.\nClick \"No\" to exit (you cannot use the app without agreeing).",
+    "issues_title": "SkiHide - Feedback",
+    "issues": "The feedback page is hosted on GitHub.\n\nIf it cannot be accessed, please try using a proxy or accelerator.\n\nClick OK to open the page.",
+    "toolbox_title": "SkiHide - Toolbox",
+    "toolbox": "Failed to open toolbox. Please check log.txt for details.",
+    "quit_title": "Exit Application",
+    "quit": "Are you sure you want to exit SkiHide?"
+  },
+  "error": {
+    "error": "Error",
+    "tray_create_failed": "Failed to create tray icon: {error}",
+    "privacy": "An error occurred during privacy confirmation. The application will exit.\nPlease check log.txt",
+    "open_issues": "Failed to open feedback page: {error}"
+  },
+  "tray": {
+    "show": "Show Main Window",
+    "quit": "Exit"
+  },
+  "danger": {
+    "title": "千万别点",
+    "message": "你确定要点击这个按钮吗？\n\n可能会发生意料之外的问题。",
+    "continue": "继续",
+    "continue_title": "继续",
+    "continue_message": "你选择了继续……\n（其实什么都不会发生）",
+    "error_popup": "弹窗失败，请查看 log.txt"
+  }
+}

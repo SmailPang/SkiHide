@@ -28,20 +28,28 @@ def _setup_console_visibility(is_debug: bool, logger: logging.Logger):
         pass
 
 def main():
-    ensure_admin_or_exit()
-    logger = setup_logging("log.txt")
+    try:
+        ensure_admin_or_exit()
+        logger = setup_logging("log.txt")
 
-    is_debug = any(a.upper() in ["-DEBUG", "--DEBUG", "/DEBUG"] for a in sys.argv[1:])
-    is_silent = any(a.upper() in ["-SILENT", "--SILENT", "/SILENT"] for a in sys.argv[1:])
-    _setup_console_visibility(is_debug, logger)
+        is_debug = any(a.upper() in ["-DEBUG", "--DEBUG", "/DEBUG"] for a in sys.argv[1:])
+        is_silent = any(a.upper() in ["-SILENT", "--SILENT", "/SILENT"] for a in sys.argv[1:])
+        _setup_console_visibility(is_debug, logger)
 
-    logger.info("===== 程序启动 =====")
-    logger.info(f"启动参数: {sys.argv}")
-    logger.info(f"开发模式: {'是' if is_debug else '否'}")
+        logger.info("===== 程序启动 =====")
+        logger.info(f"启动参数: {sys.argv}")
+        logger.info(f"开发模式: {'是' if is_debug else '否'}")
 
-    root = tk.Tk()
-    app = SkiHideApp(root, is_debug=is_debug, start_silent=is_silent)
-    root.mainloop()
+        root = tk.Tk()
+        app = SkiHideApp(root, is_debug=is_debug, start_silent=is_silent)
+        root.mainloop()
+
+    except Exception as e:
+        import traceback
+        print("发生异常:")
+        print(traceback.format_exc())
+        input("按回车退出")
 
 if __name__ == "__main__":
     main()
+

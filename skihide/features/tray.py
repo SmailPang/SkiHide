@@ -5,6 +5,7 @@ from pystray import MenuItem as item
 from PIL import Image
 
 from ..utils.paths import resource_path
+from ..i18n import load_languages, set_language, get_available_languages, t
 
 def start_tray(app, logger):
     """Start pystray icon in background thread. app must provide _restore_window() and quit_app()."""
@@ -18,18 +19,19 @@ def start_tray(app, logger):
         def on_exit(icon, _item):
             app.root.after(0, app.quit_app)
 
-        # Invisible default item (handles double-click) without bold visible menu entry
         menu = pystray.Menu(
             item(" ", on_show, default=True, visible=False),
-            item("显示主界面", on_show),
-            item("退出程序", on_exit),
+            item(t("tray.show"), on_show),
+            item(t("tray.quit"), on_exit),
         )
 
         tray_icon = pystray.Icon("SkiHide", image, "SkiHide", menu)
 
-        t = threading.Thread(target=tray_icon.run, daemon=True)
-        t.start()
-        return tray_icon, t
+        tray_thread = threading.Thread(target=tray_icon.run, daemon=True)
+        tray_thread.start()
+
+        return tray_icon, tray_thread
+
     except Exception:
         logger.error(f"托盘图标创建失败: {traceback.format_exc()}")
         raise

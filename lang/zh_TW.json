@@ -1,0 +1,95 @@
+{
+  "meta": {
+    "name": "繁體中文",
+    "code": "zh_TW"
+  },
+  "app": {
+    "name": "SkiHide"
+  },
+  "menu": {
+    "settings": "設定",
+    "feedback": "問題回饋",
+    "toolbox": "百寶箱",
+    "developer": "開發者",
+    "test_crash": "測試崩潰",
+    "refresh_log": "重新整理日誌",
+    "system_info": "查看系統資訊"
+  },
+  "main": {
+    "window_list": "已開啟的視窗:",
+    "refresh": "重新整理列表",
+    "set_hotkey": "設定快捷鍵:",
+    "use_mouse": "使用滑鼠側鍵",
+    "start_listen": "開始監聽",
+    "stop_listen": "停止監聽"
+  },
+  "settings": {
+    "notice": "提示",
+    "title": "設定",
+    "language": "語言:",
+    "translation_help": "願意協助我們完成翻譯工作嗎？請前往 ",
+    "crowdin": "Crowdin",
+    "restart_required": "語言已切換，重新啟動軟體後生效",
+    "mute_after_hide": "隱藏後關閉聲音:",
+    "autostart": "開機自動啟動:",
+    "silent_start": "靜默啟動:",
+    "mem_clean": "定時清理記憶體:",
+    "interval": "清理間隔:",
+    "minute": "分鐘",
+    "hour": "小時",
+    "skip_list": "記憶體清理白名單:",
+    "add": "新增",
+    "delete": "刪除選中",
+    "reset": "恢復預設",
+    "select_running": "從執行中選擇",
+    "ok": "確定",
+    "apply": "套用",
+    "cancel": "取消",
+    "autostart_tips": "開機自動啟動僅支援 Windows"
+  },
+  "toolbox": {
+    "next": "繼續",
+    "tips": "這些功能可能會影響系統穩定性，請謹慎使用。",
+    "memory_cleanup": "記憶體清理",
+    "clear_cache": "清理快取",
+    "qwbd": "千万别点",
+    "clean_memory_title": "SkiHide - 記憶體清理",
+    "clean_memory_confirm_message": "即將執行【記憶體清理】\n\n這會嘗試讓系統回收部分程序的工作集（Working Set），可能帶來：\n• 某些程式短暫卡頓或重新載入\n• 個別程式出現異常或當機\n• 如有需要可在設定中新增清理白名單（白名單中的程序不會被清理）\n\n是否繼續？",
+    "clean_memory_done_title": "SkiHide - 記憶體清理完成",
+    "clean_memory_done_message": "成功: {cleaned}\n失敗: {failed}",
+    "clean_memory_error_message": "執行失敗: {error}",
+    "clean_temp_title": "SkiHide - 清理快取",
+    "clean_temp_confirm_message": "即將清理【系統暫存資料夾（%TEMP%）】\n\n可能帶來：\n• 正在執行的軟體暫存檔被佔用，部分檔案無法刪除（正常現象）\n• 少數軟體可能需要重新產生快取，首次啟動會變慢\n\n是否繼續？",
+    "clean_temp_done_title": "SkiHide - 清理快取完成",
+    "clean_temp_done_message": "刪除檔案: {files}\n刪除空目錄: {dirs}\n失敗/跳過: {failed}",
+    "clean_temp_error_message": "執行失敗: {error}"
+  },
+  "messagebox": {
+    "privacy_title": "SkiHide - 隱私政策與免責聲明",
+    "privacy_notice": "在使用 SkiHide 前，請務必閱讀並同意《隱私政策與免責聲明》。\n\n請前往以下連結查看：\n{url}\n\n點擊「是」表示您已閱讀並同意。\n點擊「否」將退出程式（不同意則無法使用）。",
+    "issues_title": "SkiHide - 問題回饋",
+    "issues": "問題回饋頁面位於 GitHub。\n\n如無法存取，請嘗試使用加速器或代理後再開啟。\n\n點擊「確定」將開啟回饋頁面。",
+    "toolbox_title": "SkiHide - 百寶箱",
+    "toolbox": "開啟百寶箱失敗，詳細日誌請查看 log.txt",
+    "quit_title": "退出程式",
+    "quit": "確定要退出 SkiHide 嗎？"
+  },
+  "error": {
+    "error": "錯誤",
+    "tray_create_failed": "托盤圖示建立失敗: {error}",
+    "privacy": "隱私政策確認流程發生錯誤，程式將退出。\n請查看 log.txt",
+    "open_issues": "開啟回饋頁面失敗: {error}"
+  },
+  "tray": {
+    "show": "顯示主介面",
+    "quit": "退出程式"
+  },
+  "danger": {
+    "title": "千万别点",
+    "message": "你确定要点击这个按钮吗？\n\n可能会发生意料之外的问题。",
+    "continue": "继续",
+    "continue_title": "继续",
+    "continue_message": "你选择了继续……\n（其实什么都不会发生）",
+    "error_popup": "弹窗失败，请查看 log.txt"
+  }
+}

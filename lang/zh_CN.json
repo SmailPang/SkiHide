@@ -1,0 +1,95 @@
+{
+  "meta": {
+    "name": "简体中文",
+    "code": "zh_CN"
+  },
+  "app": {
+    "name": "SkiHide"
+  },
+  "menu": {
+    "settings": "设置",
+    "feedback": "问题反馈",
+    "toolbox": "百宝箱",
+    "developer": "开发者",
+    "test_crash": "测试崩溃",
+    "refresh_log": "刷新日志",
+    "system_info": "查看系统信息"
+  },
+  "main": {
+    "window_list": "已打开的窗口:",
+    "refresh": "刷新列表",
+    "set_hotkey": "设置快捷键:",
+    "use_mouse": "使用鼠标侧键",
+    "start_listen": "开始监听",
+    "stop_listen": "停止监听"
+  },
+  "settings": {
+    "notice": "提示",
+    "title": "设置",
+    "language": "语言:",
+    "translation_help": "愿意帮助我们完成翻译工作吗？请前往 ",
+    "crowdin": "Crowdin",
+    "restart_required": "语言已切换，重启软件后生效",
+    "mute_after_hide": "隐藏后关闭声音:",
+    "autostart": "开机自启动:",
+    "silent_start": "静默启动:",
+    "mem_clean": "定时清理内存:",
+    "interval": "清理间隔:",
+    "minute": "分钟",
+    "hour": "小时",
+    "skip_list": "内存清理跳过名单:",
+    "add": "添加",
+    "delete": "删除选中",
+    "reset": "恢复默认",
+    "select_running": "从运行中选择",
+    "ok": "确定",
+    "apply": "应用",
+    "cancel": "取消",
+    "autostart_tips": "开机自启动仅支持 Windows"
+  },
+  "toolbox": {
+    "next": "继续",
+    "tips": "这些功能可能会影响系统稳定性，请谨慎使用。",
+    "memory_cleanup": "内存清理",
+    "clear_cache": "清理缓存",
+    "qwbd": "千万别点",
+    "clean_memory_title": "SkiHide - 内存清理",
+    "clean_memory_confirm_message": "即将执行【内存清理】\n\n这会尝试让系统回收部分进程的工作集（Working Set），可能带来：\n• 某些程序短暂卡顿/重新加载\n• 个别程序出现异常或崩溃\n• 如有需要可在设置里添加清理白名单（白名单中的进程不做清理）\n\n是否继续？",
+    "clean_memory_done_title": "SkiHide - 内存清理完成",
+    "clean_memory_done_message": "成功: {cleaned}\n失败: {failed}",
+    "clean_memory_error_message": "执行失败: {error}",
+    "clean_temp_title": "SkiHide - 清理缓存",
+    "clean_temp_confirm_message": "即将清理【系统临时缓存（%TEMP%）】\n\n可能带来：\n• 正在运行的软件临时文件被占用，部分文件无法删除（正常）\n• 少数软件可能需要重新生成缓存，首次启动变慢\n\n是否继续？",
+    "clean_temp_done_title": "SkiHide - 清理缓存完成",
+    "clean_temp_done_message": "删除文件: {files}\n删除空目录: {dirs}\n失败/跳过: {failed}",
+    "clean_temp_error_message": "执行失败: {error}"
+  },
+  "messagebox": {
+    "privacy_title": "SkiHide - 隐私政策与免责说明",
+    "privacy_notice": "在使用 SkiHide 前，请您务必阅读并同意《隐私政策与免责说明》。\n\n请前往以下链接查看：\n{url}\n\n点击“是”表示您已阅读并同意。\n点击“否”将退出程序（不同意则无法使用）。",
+    "issues_title": "SkiHide - 问题反馈",
+    "issues": "问题反馈页面位于 GitHub。\\n\\n如遇到无法访问，请尝试使用加速器/代理等方式后再打开。\\n\\n点击“确定”将打开反馈页面。",
+    "toolbox_title": "SkiHide - 百宝箱",
+    "toolbox": "打开百宝箱失败，详细日志请查看 log.txt",
+    "quit_title": "退出程序",
+    "quit": "确定要退出 SkiHide 吗？"
+  },
+  "error": {
+    "error": "错误",
+    "tray_create_failed": "托盘图标创建失败: {error}",
+    "privacy": "隐私政策确认流程发生错误，程序将退出。\n请查看 log.txt",
+    "open_issues": "打开反馈页面失败: {error}"
+  },
+  "tray": {
+    "show": "显示主界面",
+    "quit": "退出程序"
+  },
+  "danger": {
+    "title": "千万别点",
+    "message": "你确定要点击这个按钮吗？\n\n可能会发生意料之外的问题。",
+    "continue": "继续",
+    "continue_title": "继续",
+    "continue_message": "你选择了继续……\n（其实什么都不会发生）",
+    "error_popup": "弹窗失败，请查看 log.txt"
+  }
+}

@@ -26,6 +26,7 @@ from .utils.paths import resource_path
 from .utils.system_info import get_system_info
 from .features.tray import start_tray
 from .features.toolbox import clean_memory_working_set, clean_temp_folder
+from .i18n import load_languages, set_language, get_available_languages, t
 
 logger = logging.getLogger()
 
@@ -44,6 +45,66 @@ DEFAULT_SKIP_LIST = [
 
 class SkiHideApp:
     def __init__(self, root, is_debug: bool = False, start_silent: bool = False):
+        # ===== 只读配置文件（支持首次自动语言检测） =====
+        import json
+        import os
+
+        from skihide.i18n import (
+            set_language,
+            detect_system_language,
+            get_available_languages
+        )
+
+        config_path = os.path.join(os.getcwd(), "config.json")
+
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    raw_config = json.load(f)
+            except Exception:
+                raw_config = {}
+        else:
+            raw_config = {}
+
+        available_languages = get_available_languages()
+
+        # ===== 首次启动：config 里没有 language =====
+        if "language" not in raw_config:
+
+            system_lang = detect_system_language()
+
+            # 1️⃣ 中文环境
+            if system_lang.startswith("zh"):
+                selected_lang = "zh_CN"
+
+            # 2️⃣ 系统语言被支持
+            elif system_lang in available_languages:
+                selected_lang = system_lang
+
+            # 3️⃣ 不支持 → 默认英文
+            else:
+                selected_lang = "en_US"
+
+            raw_config["language"] = selected_lang
+
+            # 立即写入 config.json
+            try:
+                with open(config_path, "w", encoding="utf-8") as f:
+                    json.dump(raw_config, f, indent=4, ensure_ascii=False)
+            except Exception:
+                pass
+
+            self.language = selected_lang
+
+        else:
+            self.language = raw_config.get("language", "zh_CN")
+
+        # 设置语言（必须在创建 UI 之前）
+        set_language(self.language)
+
+        # 保存到实例
+        self.config = raw_config
+
         self.root = root
         self.root.title("SkiHide")
         self.current_version = "1.3.8"
@@ -68,7 +129,7 @@ class SkiHideApp:
         self.autostart_enabled = False
         self.mem_clean_enabled = False
         self.mem_clean_value = 30
-        self.mem_clean_unit = "分钟"
+        self.mem_clean_unit = "minute"
         self._mem_clean_after_id = None
 
 
@@ -108,7 +169,7 @@ class SkiHideApp:
         try:
             self.tray_icon, self.tray_thread = start_tray(self, logger)
         except Exception as e:
-            messagebox.showerror("错误", f"托盘图标创建失败: {str(e)}")
+            messagebox.showerror(t("error.error"), t("logs.tray_create_failed", error=str(e)))
 
         self.populate_window_list()
         self.load_config()
@@ -124,6 +185,7 @@ class SkiHideApp:
         self.hotkey_handle = None
         self.record_hook = None
         self.was_listening_before_record = False
+
 
     # -------- config safe io --------
     def read_config_safely(self):
@@ -161,7 +223,7 @@ class SkiHideApp:
     def set_autostart(self, enabled: bool):
         """Enable/disable autostart via HKCU\...\Run."""
         if sys.platform != "win32":
-            raise RuntimeError("开机自启动仅支持 Windows")
+            raise RuntimeError(t("settings.autostart_tips"))
         name = "SkiHide"
         key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
@@ -177,8 +239,8 @@ class SkiHideApp:
     def _mem_clean_interval_ms(self) -> int:
         value = int(getattr(self, "mem_clean_value", 30) or 30)
         value = max(1, min(999, value))
-        unit = getattr(self, "mem_clean_unit", "分钟")
-        if unit == "小时":
+        unit = getattr(self, "mem_clean_unit", "minute")
+        if unit == "hour":
             return value * 60 * 60 * 1000
         return value * 60 * 1000
 
@@ -232,15 +294,9 @@ class SkiHideApp:
                 return True
 
             url = "https://skihide.xyz/guide/privacy"
-            msg = (
-                "在使用 SkiHide 前，请您务必阅读并同意《隐私政策与免责说明》。\n\n"
-                "请前往以下链接查看：\n"
-                f"{url}\n\n"
-                "点击“是”表示您已阅读并同意。\n"
-                "点击“否”将退出程序（不同意则无法使用）。"
-            )
+            msg = t("messagebox.privacy_notice", url=url)
 
-            agreed = messagebox.askyesno("SkiHide - 隐私政策与免责说明", msg)
+            agreed = messagebox.askyesno(t("messagebox.privacy_title"), msg)
             if agreed:
                 config["privacy_accepted"] = True
                 self.write_config_safely(config)
@@ -251,22 +307,18 @@ class SkiHideApp:
                 return False
         except Exception:
             logger.error(f"隐私政策检查异常: {traceback.format_exc()}")
-            messagebox.showerror("SkiHide", "隐私政策确认流程发生错误，程序将退出。\n请查看 log.txt")
+            messagebox.showerror("SkiHide", t("error.privacy"))
             return False
 
     # -------- menu actions --------
     def open_feedback(self):
         url = "https://github.com/Akttoer/SkiHide/issues"
-        tip = (
-            "问题反馈页面位于 GitHub。\n\n"
-            "如遇到无法访问，请尝试使用加速器/代理等方式后再打开。\n\n"
-            "点击“确定”将打开反馈页面。"
-        )
+        tip = t("messagebox.issues")
         try:
-            messagebox.showinfo("SkiHide - 问题反馈", tip)
+            messagebox.showinfo(t("messagebox.issues_title"), tip)
             webbrowser.open(url, new=2)
         except Exception as e:
-            messagebox.showerror("错误", f"打开反馈页面失败: {str(e)}")
+            messagebox.showerror(t("error.error"), t("error.open_issues"), error=str(e))
             logger.error(f"打开反馈页面失败: {traceback.format_exc()}")
 
     def open_toolbox(self):
@@ -277,7 +329,7 @@ class SkiHideApp:
                 return
 
             self.toolbox_window = tk.Toplevel(self.root)
-            self.toolbox_window.title("百宝箱")
+            self.toolbox_window.title(t("menu.toolbox"))
             self.toolbox_window.geometry("360x220")
             self.toolbox_window.resizable(False, False)
             self.toolbox_window.transient(self.root)
@@ -285,60 +337,80 @@ class SkiHideApp:
             frame = ttk.Frame(self.toolbox_window, padding=15)
             frame.pack(fill=tk.BOTH, expand=True)
 
-            ttk.Label(frame, text="⚠️ 这些功能可能会影响系统稳定性，请谨慎使用。", wraplength=320).pack(anchor="w", pady=(0, 12))
+            ttk.Label(frame, text=t("toolbox.tips"), wraplength=320).pack(anchor="w", pady=(0, 12))
 
-            ttk.Button(frame, text="内存清理", command=self.confirm_and_clean_memory).pack(fill=tk.X, pady=5)
-            ttk.Button(frame, text="清理缓存", command=self.confirm_and_clean_temp).pack(fill=tk.X, pady=5)
+            ttk.Button(frame, text=t("toolbox.memory_cleanup"), command=self.confirm_and_clean_memory).pack(fill=tk.X, pady=5)
+            ttk.Button(frame, text=t("toolbox.clear_cache"), command=self.confirm_and_clean_temp).pack(fill=tk.X, pady=5)
             ttk.Separator(frame).pack(fill=tk.X, pady=10)
-            ttk.Button(frame, text="千万别点", command=self.danger_button_step1).pack(fill=tk.X, pady=5)
+            ttk.Button(frame, text=t("toolbox.qwbd"), command=self.danger_button_step1).pack(fill=tk.X, pady=5)
 
             self.toolbox_window.protocol("WM_DELETE_WINDOW", self.toolbox_window.destroy)
         except Exception:
             logger.error(f"打开百宝箱失败: {traceback.format_exc()}")
-            messagebox.showerror("SkiHide - 百宝箱", "打开百宝箱失败，请查看 log.txt")
+            messagebox.showerror(t("messagebox.title"), t("messagebox.toolbox"))
 
     def confirm_and_clean_memory(self):
-        msg = (
-            "即将执行【内存清理】\n\n"
-            "这会尝试让系统回收部分进程的工作集（Working Set），可能带来：\n"
-            "• 某些程序短暂卡顿/重新加载\n"
-            "• 个别程序出现异常或崩溃\n"
-            "• 如有需要可在设置里添加清理白名单（白名单中的进程不做清理）\n\n"
-            "是否继续？"
-        )
-        if not messagebox.askyesno("SkiHide - 内存清理", msg):
+
+        msg = t("toolbox.clean_memory_confirm_message")
+
+        if not messagebox.askyesno(
+                t("toolbox.clean_memory_title"),
+                msg
+        ):
             return
+
         try:
             cleaned, failed = clean_memory_working_set(
                 logger,
                 skip_process_names=self.get_memory_clean_skip_list()
             )
-            messagebox.showinfo("SkiHide - 内存清理完成", f"成功: {cleaned}\n失败: {failed}")
+
+            messagebox.showinfo(
+                t("toolbox.clean_memory_done_title"),
+                t("toolbox.clean_memory_done_message", cleaned=cleaned, failed=failed)
+            )
+
         except Exception as e:
             logger.error(f"内存清理失败: {traceback.format_exc()}")
-            messagebox.showerror("SkiHide - 内存清理", f"执行失败: {str(e)}")
+            messagebox.showerror(
+                t("toolbox.clean_memory_title"),
+                t("toolbox.clean_memory_error_message", error=str(e))
+            )
 
     def confirm_and_clean_temp(self):
-        msg = (
-            "即将清理【系统临时缓存（%TEMP%）】\n\n"
-            "可能带来：\n"
-            "• 正在运行的软件临时文件被占用，部分文件无法删除（正常）\n"
-            "• 少数软件可能需要重新生成缓存，首次启动变慢\n\n"
-            "是否继续？"
-        )
-        if not messagebox.askyesno("SkiHide - 清理缓存", msg):
+
+        msg = t("toolbox.clean_temp_confirm_message")
+
+        if not messagebox.askyesno(
+                t("toolbox.clean_temp_title"),
+                msg
+        ):
             return
+
         try:
             deleted_files, deleted_dirs, failed = clean_temp_folder(logger)
-            messagebox.showinfo("SkiHide - 清理缓存完成", f"删除文件: {deleted_files}\n删除空目录: {deleted_dirs}\n失败/跳过: {failed}")
+
+            messagebox.showinfo(
+                t("toolbox.clean_temp_done_title"),
+                t(
+                    "toolbox.clean_temp_done_message",
+                    files=deleted_files,
+                    dirs=deleted_dirs,
+                    failed=failed
+                )
+            )
+
         except Exception as e:
             logger.error(f"清理缓存失败: {traceback.format_exc()}")
-            messagebox.showerror("SkiHide - 清理缓存", f"执行失败: {str(e)}")
+            messagebox.showerror(
+                t("toolbox.clean_temp_title"),
+                t("toolbox.clean_temp_error_message", error=str(e))
+            )
 
     def danger_button_step1(self):
         try:
             win = tk.Toplevel(self.root)
-            win.title("千万别点")
+            win.title(t("danger.title"))
             win.geometry("380x180")
             win.resizable(False, False)
             win.transient(self.root)
@@ -347,7 +419,12 @@ class SkiHideApp:
             frame = ttk.Frame(win, padding=15)
             frame.pack(fill=tk.BOTH, expand=True)
 
-            ttk.Label(frame, text="你确定要点击这个按钮吗？\n\n可能会发生意料之外的问题。", wraplength=340, justify="left").pack(anchor="w", pady=(0, 15))
+            ttk.Label(
+                frame,
+                text=t("danger.message"),
+                wraplength=340,
+                justify="left"
+            ).pack(anchor="w", pady=(0, 15))
 
             btn_frame = ttk.Frame(frame)
             btn_frame.pack(fill=tk.X)
@@ -357,45 +434,57 @@ class SkiHideApp:
                     win.destroy()
                 except Exception:
                     pass
-                messagebox.showinfo("继续", "你选择了继续……\n（其实什么都不会发生）")
 
-            ttk.Button(btn_frame, text="继续", command=cont).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=3)
-            ttk.Button(btn_frame, text="继续", command=cont).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=3)
-            ttk.Button(btn_frame, text="继续", command=cont).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=3)
+                messagebox.showinfo(
+                    t("danger.continue_title"),
+                    t("danger.continue_message")
+                )
+
+            for _ in range(3):
+                ttk.Button(
+                    btn_frame,
+                    text=t("danger.continue"),
+                    command=cont
+                ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=3)
 
             win.protocol("WM_DELETE_WINDOW", lambda: None)
+
         except Exception:
             logger.error(f"千万别点弹窗失败: {traceback.format_exc()}")
-            messagebox.showerror("SkiHide", "弹窗失败，请查看 log.txt")
+
+            messagebox.showerror(
+                t("app.name"),
+                t("danger.error_popup")
+            )
 
     # -------- UI --------
     def create_widgets(self):
         self.menu_bar = tk.Menu(self.root)
         self.root.config(menu=self.menu_bar)
 
-        self.menu_bar.add_command(label="设置", command=self.open_settings)
-        self.menu_bar.add_command(label="问题反馈", command=self.open_feedback)
-        self.menu_bar.add_command(label="百宝箱", command=self.open_toolbox)
+        self.menu_bar.add_command(label=t("menu.settings"), command=self.open_settings)
+        self.menu_bar.add_command(label=t("menu.feedback"), command=self.open_feedback)
+        self.menu_bar.add_command(label=t("menu.toolbox"), command=self.open_toolbox)
 
         if self.is_debug:
             dev_menu = tk.Menu(self.menu_bar, tearoff=0)
-            self.menu_bar.add_cascade(label="开发者", menu=dev_menu)
-            dev_menu.add_command(label="测试崩溃", command=self.test_crash)
+            self.menu_bar.add_cascade(label=t("menu.developer"), menu=dev_menu)
+            dev_menu.add_command(label=t("menu.test_crash"), command=self.test_crash)
             dev_menu.add_separator()
-            dev_menu.add_command(label="刷新日志", command=self.refresh_log)
-            dev_menu.add_command(label="查看系统信息", command=self.show_system_info)
+            dev_menu.add_command(label=t("menu.refresh_log"), command=self.refresh_log)
+            dev_menu.add_command(label=t("menu.system_info"), command=self.show_system_info)
 
         main_frame = ttk.Frame(self.root, padding=10)
         main_frame.grid(row=0, column=0, sticky="nsew")
 
-        ttk.Label(main_frame, text="已打开的窗口:").grid(row=0, column=0, sticky="w")
+        ttk.Label(main_frame, text=t("main.window_list")).grid(row=0, column=0, sticky="w")
         self.window_list = tk.Listbox(main_frame, width=50, height=15)
         self.window_list.grid(row=1, column=0, columnspan=2, pady=5)
 
-        self.refresh_btn = ttk.Button(main_frame, text="刷新列表", command=self.populate_window_list)
+        self.refresh_btn = ttk.Button(main_frame, text=t("main.refresh"), command=self.populate_window_list)
         self.refresh_btn.grid(row=2, column=0, pady=5, sticky="ew")
 
-        ttk.Label(main_frame, text="设置快捷键:").grid(row=3, column=0, sticky="w")
+        ttk.Label(main_frame, text=t("main.set_hotkey")).grid(row=3, column=0, sticky="w")
         self.hotkey_entry = ttk.Entry(main_frame, width=20)
         self.hotkey_entry.grid(row=3, column=1, padx=5, sticky="ew")
         self.hotkey_entry.bind("<FocusIn>", self.start_hotkey_recording)
@@ -403,13 +492,13 @@ class SkiHideApp:
         self.use_mouse_var = tk.BooleanVar(value=False)
         self.use_mouse_checkbox = ttk.Checkbutton(
             main_frame,
-            text="使用鼠标侧键",
+            text=t("main.use_mouse"),
             variable=self.use_mouse_var,
             command=self.on_mouse_setting_change
         )
         self.use_mouse_checkbox.grid(row=4, column=0, sticky="w", pady=(5, 0))
 
-        self.start_btn = ttk.Button(main_frame, text="开始监听", command=self.toggle_listener)
+        self.start_btn = ttk.Button(main_frame, text=t("main.start_listen"), command=self.toggle_listener)
         self.start_btn.grid(row=5, column=0, columnspan=2, pady=10, sticky="ew")
 
     def setup_window_events(self):
@@ -641,7 +730,7 @@ class SkiHideApp:
             self.minimize_to_tray()
 
     def on_close(self):
-        if messagebox.askyesno("退出程序", "确定要退出 SkiHide 吗？"):
+        if messagebox.askyesno(t("messagebox.quit_title"), t("messagebox.quit")):
             self.quit_app()
 
     def minimize_to_tray(self):
@@ -660,9 +749,13 @@ class SkiHideApp:
 
     # -------- settings window (kept) --------
     def open_settings(self):
+
+        import webbrowser
+
+        # ===== 创建设置窗口 =====
         self.settings_window = tk.Toplevel(self.root)
-        self.settings_window.title("设置")
-        self.settings_window.geometry("470x560")  # ✅ 加高加宽，避免挤在一起
+        self.settings_window.title(t("settings.title"))
+        self.settings_window.geometry("470x560")
         self.settings_window.resizable(False, False)
 
         self.settings_window.transient(self.root)
@@ -673,81 +766,182 @@ class SkiHideApp:
         settings_frame.columnconfigure(0, weight=1)
         settings_frame.columnconfigure(1, weight=0)
 
-        # ---- 1) Mute after hide ----
-        ttk.Label(settings_frame, text="隐藏后关闭声音:").grid(
+        # =========================================================
+        # 1️⃣ 语言设置
+        # =========================================================
+        ttk.Label(settings_frame, text=t("settings.language")).grid(
             row=0, column=0, sticky="w", pady=8, padx=(0, 20)
         )
+
+        languages = get_available_languages()
+
+        language_display = [
+            f"{info['name']} ({code})"
+            for code, info in languages.items()
+        ]
+
+        self.language_var = tk.StringVar()
+
+        self.language_combo = ttk.Combobox(
+            settings_frame,
+            values=language_display,
+            state="readonly",
+            textvariable=self.language_var
+        )
+        self.language_combo.grid(row=0, column=1, sticky="w")
+
+        for code, info in languages.items():
+            if code == self.language:
+                self.language_var.set(f"{info['name']} ({code})")
+                break
+
+        # ================= Crowdin 同一行 =================
+        translation_frame = ttk.Frame(settings_frame)
+        translation_frame.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
+
+        ttk.Label(
+            translation_frame,
+            text=t("settings.translation_help")
+        ).pack(side="left")
+
+        crowdin_label = tk.Label(
+            translation_frame,
+            text=t("settings.crowdin"),
+            fg="blue",
+            cursor="hand2"
+        )
+        crowdin_label.pack(side="left")
+
+        crowdin_label.config(font=("TkDefaultFont", 9, "underline"))
+
+        def open_crowdin(event=None):
+            webbrowser.open("https://zh.crowdin.com/project/skihide-i18n")
+
+        def on_enter(e):
+            crowdin_label.config(fg="darkblue")
+
+        def on_leave(e):
+            crowdin_label.config(fg="blue")
+
+        crowdin_label.bind("<Button-1>", open_crowdin)
+        crowdin_label.bind("<Enter>", on_enter)
+        crowdin_label.bind("<Leave>", on_leave)
+
+        # =========================================================
+        # 2️⃣ 隐藏后关闭声音
+        # =========================================================
+        ttk.Label(settings_frame, text=t("settings.mute_after_hide")).grid(
+            row=2, column=0, sticky="w", pady=8, padx=(0, 20)
+        )
+
         self.temp_mute_after_hide = getattr(self, "mute_after_hide", False)
         self.mute_after_hide_var = tk.BooleanVar(value=self.temp_mute_after_hide)
-        self.mute_after_hide_switch = ttk.Checkbutton(settings_frame, variable=self.mute_after_hide_var)
-        self.mute_after_hide_switch.grid(row=0, column=1, sticky="w")
 
-        # ---- 2) Autostart ----
-        ttk.Label(settings_frame, text="开机自启动:").grid(
-            row=1, column=0, sticky="w", pady=8, padx=(0, 20)
+        ttk.Checkbutton(
+            settings_frame,
+            variable=self.mute_after_hide_var
+        ).grid(row=2, column=1, sticky="w")
+
+        # =========================================================
+        # 3️⃣ 开机自启动
+        # =========================================================
+        ttk.Label(settings_frame, text=t("settings.autostart")).grid(
+            row=3, column=0, sticky="w", pady=8, padx=(0, 20)
         )
+
         self.autostart_var = tk.BooleanVar(value=getattr(self, "autostart_enabled", False))
-        self.autostart_switch = ttk.Checkbutton(
+
+        ttk.Checkbutton(
             settings_frame,
             variable=self.autostart_var,
             command=self._on_autostart_toggle
-        )
-        self.autostart_switch.grid(row=1, column=1, sticky="w")
+        ).grid(row=3, column=1, sticky="w")
 
-        ttk.Label(settings_frame, text="静默启动:").grid(
-            row=2, column=0, sticky="w", pady=8, padx=(0, 20)
+        ttk.Label(settings_frame, text=t("settings.silent_start")).grid(
+            row=4, column=0, sticky="w", pady=8, padx=(0, 20)
         )
+
         self.silent_start_var = tk.BooleanVar(value=getattr(self, "silent_start_enabled", True))
-        self.silent_start_chk = ttk.Checkbutton(settings_frame, variable=self.silent_start_var)
-        self.silent_start_chk.grid(row=2, column=1, sticky="w")
+
+        ttk.Checkbutton(
+            settings_frame,
+            variable=self.silent_start_var
+        ).grid(row=4, column=1, sticky="w")
 
         self._on_autostart_toggle()
 
-        # ---- 3) Scheduled memory cleaning ----
-        ttk.Label(settings_frame, text="定时清理内存:").grid(
-            row=3, column=0, sticky="w", pady=8, padx=(0, 20)
+        # =========================================================
+        # 4️⃣ 定时清理内存
+        # =========================================================
+        ttk.Label(settings_frame, text=t("settings.mem_clean")).grid(
+            row=5, column=0, sticky="w", pady=8, padx=(0, 20)
         )
-        self.mem_clean_enabled_var = tk.BooleanVar(value=getattr(self, "mem_clean_enabled", False))
-        self.mem_clean_enabled_chk = ttk.Checkbutton(
+
+        self.mem_clean_enabled_var = tk.BooleanVar(
+            value=getattr(self, "mem_clean_enabled", False)
+        )
+
+        ttk.Checkbutton(
             settings_frame,
             variable=self.mem_clean_enabled_var,
             command=self._on_mem_clean_toggle
-        )
-        self.mem_clean_enabled_chk.grid(row=3, column=1, sticky="w")
+        ).grid(row=5, column=1, sticky="w")
 
-        # interval row
         interval_frame = ttk.Frame(settings_frame)
-        interval_frame.grid(row=4, column=0, columnspan=2, sticky="w", pady=(2, 10))
+        interval_frame.grid(row=6, column=0, columnspan=2, sticky="w", pady=(2, 10))
 
-        ttk.Label(interval_frame, text="清理间隔:").grid(row=0, column=0, sticky="w", padx=(0, 10))
-
-        self.mem_clean_value_var = tk.IntVar(value=int(getattr(self, "mem_clean_value", 30) or 30))
-        self.mem_clean_value_spin = ttk.Spinbox(
-            interval_frame, from_=1, to=999,
-            textvariable=self.mem_clean_value_var, width=6
+        ttk.Label(interval_frame, text=t("settings.interval")).grid(
+            row=0, column=0, sticky="w", padx=(0, 10)
         )
-        self.mem_clean_value_spin.grid(row=0, column=1, sticky="w", padx=(0, 10))
 
-        self.mem_clean_unit_var = tk.StringVar(value=getattr(self, "mem_clean_unit", "分钟"))
-        self.mem_clean_unit_combo = ttk.Combobox(
-            interval_frame, textvariable=self.mem_clean_unit_var,
-            values=["分钟", "小时"], width=6, state="readonly"
+        self.mem_clean_value_var = tk.IntVar(
+            value=int(getattr(self, "mem_clean_value", 30) or 30)
         )
-        self.mem_clean_unit_combo.grid(row=0, column=2, sticky="w")
 
-        # apply initial enable/disable state
+        ttk.Spinbox(
+            interval_frame,
+            from_=1,
+            to=999,
+            textvariable=self.mem_clean_value_var,
+            width=6
+        ).grid(row=0, column=1, sticky="w", padx=(0, 10))
+
+        unit_display = (
+            t("settings.hour")
+            if self.mem_clean_unit == "hour"
+            else t("settings.minute")
+        )
+
+        self.mem_clean_unit_var = tk.StringVar(value=unit_display)
+
+        ttk.Combobox(
+            interval_frame,
+            textvariable=self.mem_clean_unit_var,
+            values=[t("settings.minute"), t("settings.hour")],
+            width=6,
+            state="readonly"
+        ).grid(row=0, column=2, sticky="w")
+
         self._on_mem_clean_toggle()
 
-        # ===== 4) Skip list UI (starts from row=5) =====
-        ttk.Separator(settings_frame).grid(row=5, column=0, columnspan=2, sticky="ew", pady=(15, 10))
+        # =========================================================
+        # 5️⃣ 分隔线
+        # =========================================================
+        ttk.Separator(settings_frame).grid(
+            row=7, column=0, columnspan=2, sticky="ew", pady=(15, 10)
+        )
 
-        ttk.Label(settings_frame, text="内存清理跳过名单:").grid(row=6, column=0, sticky="w", pady=(0, 6))
+        # =========================================================
+        # 6️⃣ 内存清理跳过名单
+        # =========================================================
+        ttk.Label(settings_frame, text=t("settings.skip_list")).grid(
+            row=8, column=0, sticky="w", pady=(0, 6)
+        )
 
-        # 临时列表：在设置窗口里编辑，点“应用/确定”才保存
         self.temp_skip_list = self.get_memory_clean_skip_list()
 
         list_frame = ttk.Frame(settings_frame)
-        list_frame.grid(row=7, column=0, columnspan=2, sticky="nsew")
+        list_frame.grid(row=9, column=0, columnspan=2, sticky="nsew")
         list_frame.columnconfigure(0, weight=1)
 
         self.skip_listbox = tk.Listbox(list_frame, height=8, selectmode=tk.EXTENDED)
@@ -764,151 +958,32 @@ class SkiHideApp:
 
         refresh_skip_listbox()
 
-        # 输入 + 按钮（放到 row=8，不占用 interval 的 row=4）
-        edit_frame = ttk.Frame(settings_frame)
-        edit_frame.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-        edit_frame.columnconfigure(0, weight=1)
-
-        self.skip_entry = ttk.Entry(edit_frame)
-        self.skip_entry.grid(row=0, column=0, sticky="ew")
-        self.skip_entry.bind("<Return>", lambda e: add_skip_item())
-
-        def add_skip_item():
-            s = self.skip_entry.get().strip().lower()
-            if not s:
-                return
-            if not s.endswith(".exe"):
-                s += ".exe"
-            if s not in self.temp_skip_list:
-                self.temp_skip_list.append(s)
-                self.temp_skip_list.sort()
-                refresh_skip_listbox()
-            self.skip_entry.delete(0, tk.END)
-
-        def remove_selected_skip():
-            sel = list(self.skip_listbox.curselection())
-            if not sel:
-                return
-
-            # 从后往前删，避免索引错位
-            for idx in reversed(sel):
-                try:
-                    self.temp_skip_list.pop(idx)
-                except Exception:
-                    pass
-
-            refresh_skip_listbox()
-
-        def reset_default_skip():
-            self.temp_skip_list.clear()
-            refresh_skip_listbox()
-
-        def open_process_picker():
-            """从当前运行进程中选择，批量加入白名单"""
-            win = tk.Toplevel(self.settings_window)
-            win.title("从运行中选择进程")
-            win.geometry("520x500")
-            win.resizable(False, False)
-            win.transient(self.settings_window)
-            win.grab_set()
-
-            frame = ttk.Frame(win, padding=12)
-            frame.pack(fill=tk.BOTH, expand=True)
-
-            ttk.Label(frame, text="搜索:").pack(anchor="w")
-            search_var = tk.StringVar(value="")
-            search_entry = ttk.Entry(frame, textvariable=search_var)
-            search_entry.pack(fill=tk.X, pady=(4, 10))
-            search_entry.focus_set()
-
-            # 列表 + 滚动条
-            list_frame2 = ttk.Frame(frame)
-            list_frame2.pack(fill=tk.BOTH, expand=True)
-
-            lb = tk.Listbox(list_frame2, height=18, selectmode=tk.EXTENDED)
-            lb.grid(row=0, column=0, sticky="nsew")
-
-            sb = ttk.Scrollbar(list_frame2, orient="vertical", command=lb.yview)
-            sb.grid(row=0, column=1, sticky="ns")
-            lb.configure(yscrollcommand=sb.set)
-
-            list_frame2.columnconfigure(0, weight=1)
-            list_frame2.rowconfigure(0, weight=1)
-
-            # 获取运行进程名（去重）
-            try:
-                names = set()
-                for p in psutil.process_iter(["name"]):
-                    n = (p.info.get("name") or "").strip()
-                    if n:
-                        names.add(n.lower())
-                all_items = sorted(names)
-            except Exception as e:
-                all_items = []
-                messagebox.showerror("错误", f"读取进程列表失败: {e}")
-                win.destroy()
-                return
-
-            def render_list():
-                q = search_var.get().strip().lower()
-                lb.delete(0, tk.END)
-                for n in all_items:
-                    if not q or q in n:
-                        lb.insert(tk.END, n)
-
-            render_list()
-
-            def on_search(_evt=None):
-                render_list()
-
-            search_entry.bind("<KeyRelease>", on_search)
-
-            # 按钮区
-            btns = ttk.Frame(frame)
-            btns.pack(fill=tk.X, pady=(10, 0))
-            btns.columnconfigure(0, weight=1)
-
-            def add_selected():
-                sel = lb.curselection()
-                if not sel:
-                    return
-
-                added = 0
-                for i in sel:
-                    name = lb.get(i).strip().lower()
-                    if not name:
-                        continue
-                    if not name.endswith(".exe"):
-                        name += ".exe"
-
-                    if name not in self.temp_skip_list:
-                        self.temp_skip_list.append(name)
-                        added += 1
-
-                if added:
-                    self.temp_skip_list.sort()
-                    refresh_skip_listbox()
-
-                win.destroy()
-
-            ttk.Button(btns, text="确定添加", command=add_selected, width=12).pack(side=tk.RIGHT, padx=(6, 0))
-            ttk.Button(btns, text="取消", command=win.destroy, width=8).pack(side=tk.RIGHT)
-
-            # 回车=确定添加
-            win.bind("<Return>", lambda e: add_selected())
-
-        ttk.Button(edit_frame, text="添加", command=add_skip_item, width=8).grid(row=0, column=1, padx=5)
-        ttk.Button(edit_frame, text="删除选中", command=remove_selected_skip, width=10).grid(row=0, column=2, padx=5)
-        ttk.Button(edit_frame, text="恢复默认", command=reset_default_skip, width=10).grid(row=0, column=3)
-        ttk.Button(edit_frame, text="从运行中选择", command=open_process_picker).grid(row=1, column=0, columnspan=5, sticky="ew", pady=(8, 0))
-
-        # buttons
+        # =========================================================
+        # 按钮区
+        # =========================================================
         button_frame = ttk.Frame(self.settings_window, padding=(20, 10, 20, 20))
         button_frame.grid(row=1, column=0, sticky="se")
 
-        ttk.Button(button_frame, text="确定", command=self.save_settings, width=8).grid(row=0, column=0, padx=5)
-        ttk.Button(button_frame, text="应用", command=self.apply_settings, width=8).grid(row=0, column=1, padx=5)
-        ttk.Button(button_frame, text="取消", command=self.cancel_settings, width=8).grid(row=0, column=2, padx=5)
+        ttk.Button(
+            button_frame,
+            text=t("settings.ok"),
+            command=self.save_settings,
+            width=8
+        ).grid(row=0, column=0, padx=5)
+
+        ttk.Button(
+            button_frame,
+            text=t("settings.apply"),
+            command=self.apply_settings,
+            width=8
+        ).grid(row=0, column=1, padx=5)
+
+        ttk.Button(
+            button_frame,
+            text=t("settings.cancel"),
+            command=self.cancel_settings,
+            width=8
+        ).grid(row=0, column=2, padx=5)
 
         self.settings_window.protocol("WM_DELETE_WINDOW", self.cancel_settings)
 
@@ -947,42 +1022,112 @@ class SkiHideApp:
         self.settings_window.destroy()
 
     def apply_settings(self):
-        # 1) UI settings
+
+        # =========================================================
+        # 语言切换
+        # =========================================================
+        language_changed = False
+
+        try:
+            selected = self.language_var.get().strip()
+
+            if "(" in selected and ")" in selected:
+                new_lang = selected.split("(")[-1].replace(")", "").strip()
+            else:
+                new_lang = self.language
+
+            if new_lang != self.language:
+                old_lang = self.language
+                self.language = new_lang
+
+                from skihide.i18n import set_language
+                set_language(new_lang)
+
+                logger.info(f"语言切换: {old_lang} -> {new_lang}")
+                language_changed = True
+
+        except Exception:
+            logger.error(f"语言切换失败: {traceback.format_exc()}")
+
+        # =========================================================
+        # 1️⃣ UI settings
+        # =========================================================
         self.mute_after_hide = self.mute_after_hide_var.get()
 
-        # 2) Autostart
-        self.autostart_enabled = bool(getattr(self, "autostart_var", tk.BooleanVar(value=False)).get())
-        self.silent_start_enabled = bool(getattr(self, "silent_start_var", tk.BooleanVar(value=True)).get())
+        # =========================================================
+        # 2️⃣ Autostart
+        # =========================================================
+        self.autostart_enabled = bool(
+            getattr(self, "autostart_var", tk.BooleanVar(value=False)).get()
+        )
 
-        # 3) Scheduled memory cleaning
-        self.mem_clean_enabled = bool(getattr(self, "mem_clean_enabled_var", tk.BooleanVar(value=False)).get())
+        self.silent_start_enabled = bool(
+            getattr(self, "silent_start_var", tk.BooleanVar(value=True)).get()
+        )
+
+        # =========================================================
+        # 3️⃣ Scheduled memory cleaning
+        # =========================================================
+        self.mem_clean_enabled = bool(
+            getattr(self, "mem_clean_enabled_var", tk.BooleanVar(value=False)).get()
+        )
+
         try:
-            self.mem_clean_value = int(getattr(self, "mem_clean_value_var", tk.IntVar(value=30)).get())
+            self.mem_clean_value = int(
+                getattr(self, "mem_clean_value_var", tk.IntVar(value=30)).get()
+            )
         except Exception:
             self.mem_clean_value = 30
+
         self.mem_clean_value = max(1, min(999, int(self.mem_clean_value)))
 
-        unit = str(getattr(self, "mem_clean_unit_var", tk.StringVar(value="分钟")).get() or "分钟")
-        if unit not in ("分钟", "小时"):
-            unit = "分钟"
-        self.mem_clean_unit = unit
+        display_unit = self.mem_clean_unit_var.get()
 
-        # persist
-        self.save_config()
+        if display_unit == t("settings.hour"):
+            self.mem_clean_unit = "hour"
+        else:
+            self.mem_clean_unit = "minute"
 
-        # apply autostart immediately
+        # =========================================================
+        # 4️⃣ 保存配置
+        # =========================================================
+        try:
+            self.save_config()
+            # =========================================================
+            # 如果语言变更，询问是否重启
+            # =========================================================
+            if language_changed:
+                restart = messagebox.askyesno(
+                    t("settings.notice"),
+                    t("settings.restart_required")
+                )
+
+                if restart:
+                    import os
+                    import sys
+                    logger.info("用户确认重启程序")
+                    os.execv(sys.executable, [sys.executable] + sys.argv)
+
+            logger.info("设置已保存")
+        except Exception:
+            logger.error(f"保存配置失败: {traceback.format_exc()}")
+
+        # =========================================================
+        # 5️⃣ 立即应用开机自启
+        # =========================================================
         try:
             self.set_autostart(self.autostart_enabled)
         except Exception as e:
             logger.error(f"开机自启动设置失败: {traceback.format_exc()}")
             messagebox.showwarning("SkiHide", f"开机自启动设置失败：{str(e)}")
 
-        # restart scheduler
+        # =========================================================
+        # 6️⃣ 重启定时清理调度
+        # =========================================================
         try:
             self.apply_memory_clean_scheduler()
         except Exception:
             logger.error(f"定时清理内存调度失败: {traceback.format_exc()}")
-
 
     def cancel_settings(self):
         self.settings_window.destroy()
@@ -1002,9 +1147,9 @@ class SkiHideApp:
             self.mem_clean_enabled = bool(config.get('mem_clean_enabled', False))
             self.silent_start_enabled = bool(config.get('silent_start_enabled', True))
             self.mem_clean_value = int(config.get('mem_clean_value', 30) or 30)
-            self.mem_clean_unit = config.get('mem_clean_unit', "分钟") or "分钟"
-            if self.mem_clean_unit not in ("分钟", "小时"):
-                self.mem_clean_unit = "分钟"
+            self.mem_clean_unit = config.get("mem_clean_unit", "minute")
+            if self.mem_clean_unit not in ("minute", "hour"):
+                self.mem_clean_unit = "minute"
             # apply scheduler on startup
             self.apply_memory_clean_scheduler()
 
@@ -1036,6 +1181,7 @@ class SkiHideApp:
                 normalized.append(s)
 
             config.update({
+                "language": self.language,
                 'hotkey': self.hotkey,
                 'use_mouse': self.use_mouse_var.get(),
                 'mute_after_hide': getattr(self, 'mute_after_hide', False),
@@ -1043,7 +1189,7 @@ class SkiHideApp:
                 'mem_clean_enabled': getattr(self, 'mem_clean_enabled', False),
                 'silent_start_enabled': getattr(self, 'silent_start_enabled', True),
                 'mem_clean_value': getattr(self, 'mem_clean_value', 30),
-                'mem_clean_unit': getattr(self, 'mem_clean_unit', '分钟'),
+                'mem_clean_unit': getattr(self, 'mem_clean_unit', 'minute'),
                 'memory_clean_skip': normalized,
             })
 
