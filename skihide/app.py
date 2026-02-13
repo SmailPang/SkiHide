@@ -1105,8 +1105,11 @@ class SkiHideApp:
                 if restart:
                     import os
                     import sys
+                    import subprocess
                     logger.info("用户确认重启程序")
-                    os.execv(sys.executable, [sys.executable] + sys.argv)
+                    exe = sys.executable
+                    subprocess.Popen([exe])
+                    os._exit(0)
 
             logger.info("设置已保存")
         except Exception:
