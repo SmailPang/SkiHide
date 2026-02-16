@@ -540,7 +540,7 @@ class SkiHideApp:
         self.window_list.delete(0, tk.END)
 
         exclude_titles = {
-            "Program Manager","Windows 输入体验","设置","ASUSMascot","AsHotplugCtrl",
+            "Program Manager","Windows 输入体验","设置","照片","ASUSMascot","AsHotplugCtrl",
             "NVIDIA GeForce Overlay","NVIDIA Share","NVIDIA Overlay","Steam","Discord",
             "Microsoft Text Input Application","Windows Shell Experience Host","SearchUI",
             "StartMenuExperienceHost","SystemTray","Desktop Window","Armoury Crate"
