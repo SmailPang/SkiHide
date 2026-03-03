@@ -44,10 +44,26 @@ DEFAULT_SKIP_LIST = [
 
 
 class SkiHideApp:
+    REGISTRY_PATH = r"Software\SkiHide"
+    LEGACY_REGISTRY_VALUE_NAME = "config"
+    LEGACY_CONFIG_FILE = "config.json"
+    BOOL_CONFIG_KEYS = {
+        "use_mouse",
+        "mute_after_hide",
+        "autostart_enabled",
+        "mem_clean_enabled",
+        "silent_start_enabled",
+        "privacy_accepted",
+    }
+    INT_CONFIG_KEYS = {
+        "mem_clean_value",
+    }
+    LIST_CONFIG_KEYS = {
+        "memory_clean_skip",
+    }
+
     def __init__(self, root, is_debug: bool = False, start_silent: bool = False):
-        # ===== 只读配置文件（支持首次自动语言检测） =====
-        import json
-        import os
+        # ===== 读取配置（支持首次自动语言检测 + 旧 config.json 自动迁移） =====
 
         from skihide.i18n import (
             set_language,
@@ -55,16 +71,7 @@ class SkiHideApp:
             get_available_languages
         )
 
-        config_path = os.path.join(os.getcwd(), "config.json")
-
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, "r", encoding="utf-8") as f:
-                    raw_config = json.load(f)
-            except Exception:
-                raw_config = {}
-        else:
-            raw_config = {}
+        raw_config = self.read_config_safely()
 
         available_languages = get_available_languages()
 
@@ -87,12 +94,7 @@ class SkiHideApp:
 
             raw_config["language"] = selected_lang
 
-            # 立即写入 config.json
-            try:
-                with open(config_path, "w", encoding="utf-8") as f:
-                    json.dump(raw_config, f, indent=4, ensure_ascii=False)
-            except Exception:
-                pass
+            self.write_config_safely(raw_config)
 
             self.language = selected_lang
 
@@ -111,8 +113,6 @@ class SkiHideApp:
         self.current_build = 26004
         self.is_debug = is_debug
         self.start_silent = start_silent
-
-        self.config_file = os.path.join(os.getcwd(), "config.json")
 
         self.hotkey = None
         self.listener = None
@@ -188,21 +188,153 @@ class SkiHideApp:
 
 
     # -------- config safe io --------
-    def read_config_safely(self):
+    def _legacy_config_path(self):
+        return os.path.join(os.getcwd(), self.LEGACY_CONFIG_FILE)
+
+    def _delete_legacy_config(self):
         try:
-            if os.path.exists(self.config_file):
-                with open(self.config_file, 'r', encoding='utf-8') as f:
-                    return json.load(f) or {}
+            config_path = self._legacy_config_path()
+            if os.path.exists(config_path):
+                os.remove(config_path)
+                logger.info("已删除旧版 config.json")
+        except Exception as e:
+            logger.error(f"删除旧版 config.json 失败: {str(e)}")
+
+    def _read_legacy_config(self):
+        config_path = self._legacy_config_path()
+        if not os.path.exists(config_path):
+            return None
+
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return json.load(f) or {}
         except Exception:
-            pass
-        return {}
+            return None
+
+    def _decode_registry_value(self, name: str, value, value_type: int):
+        if name in self.BOOL_CONFIG_KEYS:
+            if value_type in (winreg.REG_DWORD, winreg.REG_QWORD):
+                return bool(value)
+            if isinstance(value, str):
+                return value.strip().lower() in ("1", "true", "yes", "on")
+            return bool(value)
+
+        if name in self.INT_CONFIG_KEYS:
+            return int(value)
+
+        if name in self.LIST_CONFIG_KEYS:
+            if value_type == winreg.REG_MULTI_SZ:
+                return list(value)
+            if isinstance(value, str):
+                try:
+                    decoded = json.loads(value)
+                    if isinstance(decoded, list):
+                        return decoded
+                except Exception:
+                    pass
+                return [value] if value else []
+            if isinstance(value, list):
+                return value
+            return []
+
+        if value is None:
+            return ""
+        return str(value) if not isinstance(value, str) else value
+
+    def _encode_registry_value(self, name: str, value):
+        if name in self.BOOL_CONFIG_KEYS:
+            return winreg.REG_DWORD, 1 if bool(value) else 0
+
+        if name in self.INT_CONFIG_KEYS:
+            try:
+                return winreg.REG_DWORD, int(value)
+            except Exception:
+                return winreg.REG_DWORD, 0
+
+        if name in self.LIST_CONFIG_KEYS:
+            items = []
+            for item in value or []:
+                if item is None:
+                    continue
+                items.append(str(item))
+            return winreg.REG_MULTI_SZ, items
+
+        if value is None:
+            return winreg.REG_SZ, ""
+        return winreg.REG_SZ, str(value)
+
+    def _read_registry_config(self):
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, self.REGISTRY_PATH) as key:
+                value_count = winreg.QueryInfoKey(key)[1]
+                config = {}
+                legacy_blob = None
+
+                for index in range(value_count):
+                    name, raw_value, value_type = winreg.EnumValue(key, index)
+                    if name == self.LEGACY_REGISTRY_VALUE_NAME:
+                        if isinstance(raw_value, str) and raw_value:
+                            try:
+                                decoded = json.loads(raw_value)
+                                if isinstance(decoded, dict):
+                                    legacy_blob = decoded
+                            except Exception as e:
+                                logger.error(f"读取旧版注册表配置失败: {str(e)}")
+                        continue
+
+                    try:
+                        config[name] = self._decode_registry_value(name, raw_value, value_type)
+                    except Exception as e:
+                        logger.error(f"解析注册表配置项失败: {name}: {str(e)}")
+
+                if config:
+                    return True, config
+
+                if legacy_blob is not None:
+                    if self.write_config_safely(legacy_blob):
+                        logger.info("已将旧版注册表配置迁移为独立字段")
+                    return True, legacy_blob
+
+                return True, {}
+        except FileNotFoundError:
+            return False, {}
+        except Exception as e:
+            logger.error(f"读取注册表配置失败: {str(e)}")
+            return True, {}
+
+    def read_config_safely(self):
+        found, config = self._read_registry_config()
+        if found:
+            return config
+
+        config = self._read_legacy_config()
+        if config is None:
+            return {}
+
+        if self.write_config_safely(config):
+            if config:
+                logger.info("已将配置从 config.json 迁移到注册表")
+            self._delete_legacy_config()
+        return config
 
     def write_config_safely(self, config: dict):
         try:
-            temp_file = self.config_file + ".tmp"
-            with open(temp_file, 'w', encoding='utf-8') as f:
-                json.dump(config, f, indent=2, ensure_ascii=False)
-            os.replace(temp_file, self.config_file)
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, self.REGISTRY_PATH) as key:
+                existing_names = []
+                value_count = winreg.QueryInfoKey(key)[1]
+                for index in range(value_count):
+                    existing_names.append(winreg.EnumValue(key, index)[0])
+
+                for name in existing_names:
+                    if name == self.LEGACY_REGISTRY_VALUE_NAME or name not in config:
+                        try:
+                            winreg.DeleteValue(key, name)
+                        except FileNotFoundError:
+                            pass
+
+                for name, value in config.items():
+                    value_type, encoded_value = self._encode_registry_value(name, value)
+                    winreg.SetValueEx(key, name, 0, value_type, encoded_value)
             return True
         except Exception as e:
             logger.error(f"写入配置失败: {str(e)}")
@@ -1272,11 +1404,11 @@ class SkiHideApp:
 
     def start_download(self, url):
         self.update_window = tk.Toplevel(self.root)
-        self.update_window.title("正在更新")
+        self.update_window.title(t("update.progress_title"))
         self.update_window.geometry("300x120")
         self.update_window.resizable(False, False)
 
-        ttk.Label(self.update_window, text="正在下载新版本...").pack(pady=10)
+        ttk.Label(self.update_window, text=t("update.downloading")).pack(pady=10)
         self.progress = ttk.Progressbar(self.update_window, mode='determinate')
         self.progress.pack(fill=tk.X, padx=20, pady=5)
 
@@ -1299,17 +1431,25 @@ class SkiHideApp:
                             self.update_window.update()
             self.apply_update(temp_file)
         except Exception as e:
-            messagebox.showerror("更新失败", f"下载失败: {str(e)}")
+            messagebox.showerror(
+                t("update.failed_title"),
+                t("update.download_failed", error=str(e))
+            )
             try: self.update_window.destroy()
             except Exception: pass
 
+    def _escape_vbs_string(self, value: str) -> str:
+        return str(value).replace('"', '""').replace("\r\n", '" & vbCrLf & "').replace("\n", '" & vbCrLf & "')
+
     def apply_update(self, temp_path):
         try:
+            done_message = self._escape_vbs_string(t("update.completed_manual_open"))
+            done_title = self._escape_vbs_string(t("update.completed_title"))
             script = f"""@echo off
 TIMEOUT /T 3 /NOBREAK >nul
 taskkill /F /IM "{os.path.basename(sys.executable)}" >nul 2>&1
 move /Y "{temp_path}" "{sys.executable}" >nul 2>&1
-mshta vbscript:msgbox("更新已完成，请手动打开 SkiHide",0,"SkiHide")(window.close)
+mshta vbscript:msgbox("{done_message}",0,"{done_title}")(window.close)
 del "%~f0"
 """
             bat_path = os.path.join(os.getcwd(), "update_script.bat")
@@ -1318,7 +1458,10 @@ del "%~f0"
             ctypes.windll.shell32.ShellExecuteW(None, "runas", bat_path, None, None, 0)
             self.quit_app()
         except Exception as e:
-            messagebox.showerror("更新失败", f"应用更新时出错: {str(e)}")
+            messagebox.showerror(
+                t("update.failed_title"),
+                t("update.apply_failed", error=str(e))
+            )
 
     # -------- Audio --------
 
