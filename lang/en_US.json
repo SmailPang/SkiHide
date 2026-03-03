@@ -70,14 +70,14 @@
     "issues_title": "SkiHide - Feedback",
     "issues": "The feedback page is hosted on GitHub.\n\nIf it cannot be accessed, please try using a proxy or accelerator.\n\nClick OK to open the page.",
     "toolbox_title": "SkiHide - Toolbox",
-    "toolbox": "Failed to open toolbox. Please check log.txt for details.",
+    "toolbox": "Failed to open toolbox. Please check the logs folder for details.",
     "quit_title": "Exit Application",
     "quit": "Are you sure you want to exit SkiHide?"
   },
   "error": {
     "error": "Error",
     "tray_create_failed": "Failed to create tray icon: {error}",
-    "privacy": "An error occurred during privacy confirmation. The application will exit.\nPlease check log.txt",
+    "privacy": "An error occurred during privacy confirmation. The application will exit.\nPlease check the logs folder.",
     "open_issues": "Failed to open feedback page: {error}"
   },
   "tray": {
@@ -90,7 +90,7 @@
     "continue": "继续",
     "continue_title": "继续",
     "continue_message": "你选择了继续……\n（其实什么都不会发生）",
-    "error_popup": "弹窗失败，请查看 log.txt"
+    "error_popup": "Popup failed. Please check the logs folder."
   },
   "update": {
     "title": "Update Available",

@@ -24,6 +24,7 @@ from pycaw.pycaw import AudioUtilities
 
 from .utils.paths import resource_path
 from .utils.system_info import get_system_info
+from .utils.logging_setup import capture_error_log, finalize_logging
 from .features.tray import start_tray
 from .features.toolbox import clean_memory_working_set, clean_temp_folder
 from .i18n import load_languages, set_language, get_available_languages, t
@@ -650,7 +651,11 @@ class SkiHideApp:
                     logger.critical(f"{k}: {v}")
             except Exception:
                 pass
-            messagebox.showerror("程序崩溃", f"程序意外崩溃: {str(e)}\n\n请将 log.txt 提交到反馈页面")
+            try:
+                capture_error_log()
+            except Exception:
+                pass
+            messagebox.showerror("程序崩溃", f"程序意外崩溃: {str(e)}\n\n请将 logs/error.log 提交到反馈页面")
             self.root.destroy()
             os._exit(1)
 
@@ -1369,9 +1374,18 @@ class SkiHideApp:
             except Exception:
                 pass
 
+            try:
+                finalize_logging()
+            except Exception:
+                pass
+
             self.root.destroy()
             sys.exit(0)
         except Exception:
+            try:
+                finalize_logging()
+            except Exception:
+                pass
             os._exit(1)
 
     # -------- updates (kept same endpoints) --------

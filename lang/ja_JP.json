@@ -70,14 +70,14 @@
     "issues_title": "SkiHide - フィードバック",
     "issues": "フィードバックページは GitHub にあります。\n\nアクセスできない場合は、プロキシやVPNなどをご利用ください。\n\n「OK」をクリックするとページを開きます。",
     "toolbox_title": "SkiHide - ツールボックス",
-    "toolbox": "ツールボックスを開けませんでした。詳細は log.txt を確認してください。",
+    "toolbox": "ツールボックスを開けませんでした。詳細は logs フォルダーを確認してください。",
     "quit_title": "アプリ終了",
     "quit": "SkiHide を終了しますか？"
   },
   "error": {
     "error": "エラー",
     "tray_create_failed": "トレイアイコンの作成に失敗しました: {error}",
-    "privacy": "プライバシー確認中にエラーが発生しました。アプリを終了します。\nlog.txt を確認してください。",
+    "privacy": "プライバシー確認中にエラーが発生しました。アプリを終了します。\nlogs フォルダーを確認してください。",
     "open_issues": "フィードバックページを開けませんでした: {error}"
   },
   "tray": {
@@ -90,7 +90,7 @@
     "continue": "继续",
     "continue_title": "继续",
     "continue_message": "你选择了继续……\n（其实什么都不会发生）",
-    "error_popup": "弹窗失败，请查看 log.txt"
+    "error_popup": "ポップアップの表示に失敗しました。logs フォルダーを確認してください。"
   },
   "update": {
     "title": "アップデートのお知らせ",

@@ -70,14 +70,14 @@
     "issues_title": "SkiHide - 问题反馈",
     "issues": "问题反馈页面位于 GitHub。\\n\\n如遇到无法访问，请尝试使用加速器/代理等方式后再打开。\\n\\n点击“确定”将打开反馈页面。",
     "toolbox_title": "SkiHide - 百宝箱",
-    "toolbox": "打开百宝箱失败，详细日志请查看 log.txt",
+    "toolbox": "打开百宝箱失败，详细日志请查看 logs 目录",
     "quit_title": "退出程序",
     "quit": "确定要退出 SkiHide 吗？"
   },
   "error": {
     "error": "错误",
     "tray_create_failed": "托盘图标创建失败: {error}",
-    "privacy": "隐私政策确认流程发生错误，程序将退出。\n请查看 log.txt",
+    "privacy": "隐私政策确认流程发生错误，程序将退出。\n请查看 logs 目录",
     "open_issues": "打开反馈页面失败: {error}"
   },
   "tray": {
@@ -90,7 +90,7 @@
     "continue": "继续",
     "continue_title": "继续",
     "continue_message": "你选择了继续……\n（其实什么都不会发生）",
-    "error_popup": "弹窗失败，请查看 log.txt"
+    "error_popup": "弹窗失败，请查看 logs 目录"
   },
   "update": {
     "title": "发现更新",

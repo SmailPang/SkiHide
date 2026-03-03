@@ -4,7 +4,7 @@ import logging
 import tkinter as tk
 
 from skihide.utils.privilege import ensure_admin_or_exit
-from skihide.utils.logging_setup import setup_logging
+from skihide.utils.logging_setup import capture_error_log, setup_logging
 from skihide.app import SkiHideApp
 
 def _setup_console_visibility(is_debug: bool, logger: logging.Logger):
@@ -30,7 +30,7 @@ def _setup_console_visibility(is_debug: bool, logger: logging.Logger):
 def main():
     try:
         ensure_admin_or_exit()
-        logger = setup_logging("log.txt")
+        logger = setup_logging()
 
         is_debug = any(a.upper() in ["-DEBUG", "--DEBUG", "/DEBUG"] for a in sys.argv[1:])
         is_silent = any(a.upper() in ["-SILENT", "--SILENT", "/SILENT"] for a in sys.argv[1:])
@@ -46,8 +46,14 @@ def main():
 
     except Exception as e:
         import traceback
+        try:
+            logging.critical(traceback.format_exc())
+            capture_error_log()
+        except Exception:
+            pass
         print("发生异常:")
         print(traceback.format_exc())
+        print("错误日志: logs/error.log")
         input("按回车退出")
 
 if __name__ == "__main__":

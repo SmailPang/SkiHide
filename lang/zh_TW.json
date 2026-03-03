@@ -70,14 +70,14 @@
     "issues_title": "SkiHide - 問題回饋",
     "issues": "問題回饋頁面位於 GitHub。\n\n如無法存取，請嘗試使用加速器或代理後再開啟。\n\n點擊「確定」將開啟回饋頁面。",
     "toolbox_title": "SkiHide - 百寶箱",
-    "toolbox": "開啟百寶箱失敗，詳細日誌請查看 log.txt",
+    "toolbox": "開啟百寶箱失敗，詳細日誌請查看 logs 目錄",
     "quit_title": "退出程式",
     "quit": "確定要退出 SkiHide 嗎？"
   },
   "error": {
     "error": "錯誤",
     "tray_create_failed": "托盤圖示建立失敗: {error}",
-    "privacy": "隱私政策確認流程發生錯誤，程式將退出。\n請查看 log.txt",
+    "privacy": "隱私政策確認流程發生錯誤，程式將退出。\n請查看 logs 目錄",
     "open_issues": "開啟回饋頁面失敗: {error}"
   },
   "tray": {
@@ -90,7 +90,7 @@
     "continue": "继续",
     "continue_title": "继续",
     "continue_message": "你选择了继续……\n（其实什么都不会发生）",
-    "error_popup": "弹窗失败，请查看 log.txt"
+    "error_popup": "彈窗失敗，請查看 logs 目錄"
   },
   "update": {
     "title": "發現更新",
