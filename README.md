@@ -1,7 +1,7 @@
 # SkiHide
 
 <p align="center">
-  <img src="http://youke.xn--y7xa690gmna.cn/s1/2026/01/17/696b6cd190174.png" alt="SkiHide Logo" width="180">
+  <img src="https://raw.githubusercontent.com/SmailPang/SkiHide/refs/heads/main/icon.ico" alt="SkiHide Logo" width="180">
 </p>
 
 **SkiHide** 是一款专为 Windows 设计的桌面窗口管理工具，  
