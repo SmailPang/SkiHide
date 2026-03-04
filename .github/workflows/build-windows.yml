@@ -95,3 +95,12 @@ jobs:
           files: |
             out/*.exe
             out/*.zip
+
+      - name: Trigger MirrorChyanUploading
+        if: ${{ github.repository_owner == 'SmailPang' }}
+        shell: bash
+        run: |
+          gh workflow run --repo $GITHUB_REPOSITORY mirrorchyan_release.yml -f tag=${{ env.VERSION }}
+          gh workflow run --repo $GITHUB_REPOSITORY mirrorchyan_release_note.yml -f tag=${{ env.VERSION }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
