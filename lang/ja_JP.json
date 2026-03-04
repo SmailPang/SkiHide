@@ -100,6 +100,8 @@
     "failed_title": "更新に失敗しました",
     "download_failed": "ダウンロードに失敗しました: {error}",
     "apply_failed": "更新の適用中にエラーが発生しました: {error}",
+    "verify_missing_hash": "更新パッケージに SHA256 が含まれていないため、ダウンロードしたファイルを検証できません。",
+    "verify_failed": "SHA256 の検証に失敗しました。\n\nサーバー側ハッシュ: {expected}\nローカルハッシュ: {actual}",
     "completed_title": "SkiHide",
     "completed_manual_open": "更新が完了しました。SkiHide を手動で起動してください。"
   }

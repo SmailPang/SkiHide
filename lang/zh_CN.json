@@ -100,6 +100,8 @@
     "failed_title": "更新失败",
     "download_failed": "下载失败：{error}",
     "apply_failed": "应用更新时出错：{error}",
+    "verify_missing_hash": "更新包未提供 SHA256，无法校验下载文件。",
+    "verify_failed": "SHA256 校验失败。\n\n云端哈希：{expected}\n本地哈希：{actual}",
     "completed_title": "SkiHide",
     "completed_manual_open": "更新已完成，请手动打开 SkiHide。"
   }

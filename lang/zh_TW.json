@@ -100,6 +100,8 @@
     "failed_title": "更新失敗",
     "download_failed": "下載失敗：{error}",
     "apply_failed": "套用更新時發生錯誤：{error}",
+    "verify_missing_hash": "更新包未提供 SHA256，無法驗證下載檔案。",
+    "verify_failed": "SHA256 驗證失敗。\n\n雲端雜湊：{expected}\n本機雜湊：{actual}",
     "completed_title": "SkiHide",
     "completed_manual_open": "更新已完成，請手動開啟 SkiHide。"
   }

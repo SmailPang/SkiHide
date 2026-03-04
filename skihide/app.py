@@ -4,6 +4,7 @@ import json
 import time
 import ctypes
 import shutil
+import hashlib
 import psutil
 import logging
 import threading
@@ -1409,14 +1410,7 @@ class SkiHideApp:
         new_version = update_info.get("version", "")
         changelog = update_info.get("update_log") or update_info.get("changelog", "")
 
-        download_options = update_info.get("download", {})
-        download_url = update_info.get("download_url")
-        if not download_url and isinstance(download_options, dict):
-            for _, info in download_options.items():
-                candidate_url = info.get("url")
-                if candidate_url:
-                    download_url = candidate_url
-                    break
+        download_url, expected_sha256 = self._extract_download_target(update_info)
 
         if not download_url:
             return
@@ -1431,9 +1425,37 @@ class SkiHideApp:
                 t("update.title"),
                 msg
         ):
-            self.start_download(download_url)
+            self.start_download(download_url, expected_sha256)
 
-    def start_download(self, url):
+    def _extract_download_target(self, update_info):
+        download_options = update_info.get("download")
+        if download_options is None:
+            download_options = update_info.get("dowanload", {})
+
+        download_url = update_info.get("download_url")
+        expected_sha256 = update_info.get("sha256")
+        if expected_sha256 is not None:
+            expected_sha256 = str(expected_sha256).strip().lower() or None
+
+        if not download_url and isinstance(download_options, str):
+            download_url = download_options
+        elif not download_url and isinstance(download_options, dict):
+            for _, info in download_options.items():
+                if isinstance(info, str):
+                    download_url = info
+                    break
+                if isinstance(info, dict):
+                    candidate_url = info.get("url")
+                    candidate_sha256 = info.get("sha256")
+                    if candidate_url:
+                        download_url = candidate_url
+                        if not expected_sha256 and candidate_sha256 is not None:
+                            expected_sha256 = str(candidate_sha256).strip().lower() or None
+                        break
+
+        return download_url, expected_sha256
+
+    def start_download(self, url, expected_sha256=None):
         self.update_window = tk.Toplevel(self.root)
         self.update_window.title(t("update.progress_title"))
         self.update_window.geometry("300x120")
@@ -1443,9 +1465,9 @@ class SkiHideApp:
         self.progress = ttk.Progressbar(self.update_window, mode='determinate')
         self.progress.pack(fill=tk.X, padx=20, pady=5)
 
-        threading.Thread(target=self.download_update, args=(url,), daemon=True).start()
+        threading.Thread(target=self.download_update, args=(url, expected_sha256), daemon=True).start()
 
-    def download_update(self, url):
+    def download_update(self, url, expected_sha256=None):
         try:
             temp_file = os.path.join(os.getcwd(), "update_temp.exe")
             with requests.get(url, stream=True, timeout=30) as r:
@@ -1460,7 +1482,25 @@ class SkiHideApp:
                             progress = (downloaded / total_size) * 100 if total_size else 0
                             self.progress['value'] = progress
                             self.update_window.update()
+
+            self.verify_update_file(temp_file, expected_sha256)
+
+            if self.is_debug:
+                logger.info("SHA256 verification succeeded")
+                try:
+                    self.update_window.destroy()
+                except Exception:
+                    pass
+                return
+
             self.apply_update(temp_file)
+        except ValueError as e:
+            messagebox.showerror(
+                t("update.failed_title"),
+                str(e)
+            )
+            try: self.update_window.destroy()
+            except Exception: pass
         except Exception as e:
             messagebox.showerror(
                 t("update.failed_title"),
@@ -1471,6 +1511,39 @@ class SkiHideApp:
 
     def _escape_vbs_string(self, value: str) -> str:
         return str(value).replace('"', '""').replace("\r\n", '" & vbCrLf & "').replace("\n", '" & vbCrLf & "')
+
+    def calculate_file_sha256(self, file_path):
+        digest = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                if chunk:
+                    digest.update(chunk)
+        return digest.hexdigest()
+
+    def verify_update_file(self, file_path, expected_sha256):
+        if not expected_sha256:
+            raise ValueError(t("update.verify_missing_hash"))
+
+        local_sha256 = self.calculate_file_sha256(file_path)
+
+        if self.is_debug:
+            logger.info("Remote SHA256: %s", expected_sha256)
+            logger.info("Local SHA256: %s", local_sha256)
+
+        if local_sha256.lower() != expected_sha256.lower():
+            try:
+                os.remove(file_path)
+            except Exception:
+                pass
+            raise ValueError(
+                t(
+                    "update.verify_failed",
+                    expected=expected_sha256,
+                    actual=local_sha256
+                )
+            )
+
+        return local_sha256
 
     def apply_update(self, temp_path):
         try:
