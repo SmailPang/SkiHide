@@ -16,7 +16,7 @@ on:
 jobs:
   mirrorchyan:
     runs-on: ubuntu-latest
-    # if: ${{ github.repository_owner == 'SmailPang' }}
+    if: ${{ github.repository_owner == 'SmailPang' }}
 
     steps:
       - id: uploading
