@@ -111,8 +111,8 @@ class SkiHideApp:
 
         self.root = root
         self.root.title("SkiHide")
-        self.current_version = "1.4.0"
-        self.current_build = 26004
+        self.current_version = "1.5.0"
+        self.current_build = 26005
         self.is_debug = is_debug
         self.start_silent = start_silent
 
