@@ -192,6 +192,17 @@ fn should_skip_window(title: &str, process_name: Option<&str>) -> bool {
         return true;
     }
 
+    if process_lc == "skihide.exe" {
+        return true;
+    }
+
+    if title_lc.contains("program manager")
+        || title_lc.contains("nvidia geforce overlay")
+        || title_lc.contains("skihide")
+    {
+        return true;
+    }
+
     let blocked_title_keywords = [
         "windows 输入体验",
         "windows input experience",
