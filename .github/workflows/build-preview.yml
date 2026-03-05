@@ -2,6 +2,10 @@ name: Build Preview EXE
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
 
 jobs:
   build-windows-exe:

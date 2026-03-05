@@ -337,59 +337,58 @@ fn build_download_candidates(
     source: &str,
     latest_version: &str,
 ) -> Vec<String> {
-    let primary = if source == "github" {
-        "github"
+    let version = latest_version.trim().trim_start_matches('v').trim_start_matches('V');
+    if version.is_empty() {
+        return Vec::new();
+    }
+
+    let rainyun_url = build_rainyun_cdn_url(version);
+    let github_url = build_github_url(version);
+
+    let mut result = if source == "github" {
+        vec![github_url, rainyun_url]
     } else {
-        "rainyun_cdn"
-    };
-    let secondary = if primary == "github" {
-        "rainyun_cdn"
-    } else {
-        "github"
+        vec![rainyun_url, github_url]
     };
 
-    let mut result = Vec::new();
-    if let Some(url) = find_download_url(download_map, primary) {
-        if primary == "rainyun_cdn" {
-            result.push(build_rainyun_cdn_url(latest_version));
-        } else if primary == "github" {
-            result.push(build_github_url(latest_version));
-        } else {
-            result.push(url);
-        }
-    }
-    if let Some(url) = find_download_url(download_map, secondary) {
-        let url = if secondary == "rainyun_cdn" {
-            build_rainyun_cdn_url(latest_version)
-        } else if secondary == "github" {
-            build_github_url(latest_version)
-        } else {
-            url
-        };
+    if let Some(url) = find_official_download(download_map, "rainyun_cdn") {
         if !result.iter().any(|item| item == &url) {
             result.push(url);
         }
     }
+    if let Some(url) = find_official_download(download_map, "github") {
+        if !result.iter().any(|item| item == &url) {
+            result.push(url);
+        }
+    }
+
     result
 }
 
 fn build_rainyun_cdn_url(version: &str) -> String {
-    let version = version.trim().trim_start_matches('v').trim_start_matches('V');
     format!("{RAINYUN_CDN_BASE}/SkiHide-{version}.exe")
 }
 
 fn build_github_url(version: &str) -> String {
-    let version = version.trim().trim_start_matches('v').trim_start_matches('V');
     format!("{GITHUB_RELEASE_BASE}/{version}/SkiHide-{version}.exe")
 }
 
-fn find_download_url(
+fn find_official_download(
     download_map: &HashMap<String, SkiHideDownloadEntry>,
     key: &str,
 ) -> Option<String> {
+    let normalize = |value: &str| {
+        value
+            .to_ascii_lowercase()
+            .chars()
+            .filter(|ch| ch.is_ascii_alphanumeric())
+            .collect::<String>()
+    };
+    let expected = normalize(key);
+
     download_map
         .iter()
-        .find(|(entry_key, _)| entry_key.to_ascii_lowercase() == key)
+        .find(|(entry_key, _)| normalize(entry_key) == expected)
         .map(|(_, entry)| entry.url.clone())
 }
 
