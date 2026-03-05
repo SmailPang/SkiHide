@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod admin_ops;
 mod audio_ops;
 mod cache_ops;
 mod config;
@@ -27,7 +28,7 @@ use tauri::{
 use tauri_plugin_global_shortcut::{
     Builder as GlobalShortcutBuilder, GlobalShortcutExt, Shortcut, ShortcutState,
 };
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::{
     config::{load_config, save_config},
@@ -783,6 +784,14 @@ pub fn run() {
     let mut logging_context = logging::init_logging().unwrap_or_else(|error| {
         panic!("failed to initialize logging system: {error}");
     });
+
+    match admin_ops::ensure_elevated_startup() {
+        Ok(true) => return,
+        Ok(false) => {}
+        Err(error) => {
+            warn!("failed to relaunch with administrator privileges: {error}");
+        }
+    }
 
     let app = tauri::Builder::default()
         .plugin(
