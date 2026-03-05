@@ -11,7 +11,9 @@ use tokio::{
     io::AsyncWriteExt,
 };
 
-use crate::models::{AppConfig, MirrorDownloadInfo, UpdateCheckInfo, UpdateDownloadResult};
+use crate::models::{
+    AppConfig, MirrorCdkValidationInfo, MirrorDownloadInfo, UpdateCheckInfo, UpdateDownloadResult,
+};
 
 pub const UPDATE_DOWNLOAD_PROGRESS_EVENT: &str = "skihide://update-download-progress";
 
@@ -210,6 +212,53 @@ pub async fn resolve_mirror_download_with_cdk(
     Ok(MirrorDownloadInfo {
         url,
         sha256,
+        mirror_code: None,
+        mirror_message: None,
+    })
+}
+
+pub async fn validate_mirror_cdk(
+    current_version: &str,
+    cdk: &str,
+) -> Result<MirrorCdkValidationInfo, String> {
+    let cdk = cdk.trim();
+    if cdk.is_empty() {
+        return Ok(MirrorCdkValidationInfo {
+            valid: false,
+            mirror_code: Some(7002),
+            mirror_message: Some("cdk is empty".to_string()),
+        });
+    }
+
+    let client = Client::new();
+    let query: Vec<(&str, String)> = vec![
+        ("current_version", current_version.to_string()),
+        ("user_agent", "skihide-client".to_string()),
+        ("cdk", cdk.to_string()),
+    ];
+
+    let mirror_resp = client
+        .get(MIRROR_ENDPOINT)
+        .query(&query)
+        .send()
+        .await
+        .map_err(|error| format!("failed to validate mirror cdk: {error}"))?;
+
+    let mirror_data: MirrorResponse = mirror_resp
+        .json()
+        .await
+        .map_err(|error| format!("failed to parse mirror cdk validation response: {error}"))?;
+
+    if mirror_data.code != 0 {
+        return Ok(MirrorCdkValidationInfo {
+            valid: false,
+            mirror_code: Some(mirror_data.code),
+            mirror_message: Some(mirror_data.msg),
+        });
+    }
+
+    Ok(MirrorCdkValidationInfo {
+        valid: true,
         mirror_code: None,
         mirror_message: None,
     })

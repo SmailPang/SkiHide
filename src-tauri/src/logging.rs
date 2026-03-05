@@ -7,6 +7,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use chrono::Local;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{fmt, prelude::*, registry};
 
@@ -206,8 +207,5 @@ fn timestamp_seconds() -> u64 {
 }
 
 fn timestamp_for_file_name() -> String {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    format!("run-{}-{:03}", now.as_secs(), now.subsec_millis())
+    Local::now().format("%Y-%m-%d_%H-%M-%S").to_string()
 }

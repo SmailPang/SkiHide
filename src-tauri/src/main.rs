@@ -33,7 +33,7 @@ use crate::{
     config::{load_config, save_config},
     models::{
         AppConfig, CacheCleanupOptions, CacheCleanupReport, ConfigUpdate, LogEntry,
-        MirrorDownloadInfo,
+        MirrorCdkValidationInfo, MirrorDownloadInfo,
         MemoryCleanupReport, UpdateCheckInfo, UpdateDownloadResult, WindowInfo,
     },
 };
@@ -94,6 +94,7 @@ impl AppState {
 
     fn update_config(&self, patch: ConfigUpdate) -> Result<AppConfig, String> {
         let mut config = self.config.lock();
+        let before = config.clone();
 
         if let Some(hotkey) = patch.hotkey {
             config.hotkey = hotkey;
@@ -136,12 +137,19 @@ impl AppState {
         if let Some(mirror_chan_sdk) = patch.mirror_chan_sdk {
             config.mirror_chan_sdk = mirror_chan_sdk;
         }
+        if let Some(auto_check_updates) = patch.auto_check_updates {
+            config.auto_check_updates = auto_check_updates;
+        }
 
         if let Some(mouse_side_button_listener) = patch.mouse_side_button_listener {
             config.mouse_side_button_listener = mouse_side_button_listener;
         }
         if let Some(privacy_consent) = patch.privacy_consent {
             config.privacy_consent = privacy_consent;
+        }
+
+        if *config == before {
+            return Ok(config.clone());
         }
 
         save_config(&config)?;
@@ -236,13 +244,15 @@ fn update_config(patch: ConfigUpdate, state: State<'_, AppState>) -> Result<AppC
         startup_ops::sync_startup_registration(next.auto_start, next.silent_start)?;
     }
 
-    state.log(
-        "INFO",
-        format!(
-            "config updated: hotkey={}, language={}, last_selected={:?}",
-            next.hotkey, next.language, next.last_selected_hwnd
-        ),
-    );
+    if previous != next {
+        state.log(
+            "INFO",
+            format!(
+                "config updated: hotkey={}, language={}, last_selected={:?}",
+                next.hotkey, next.language, next.last_selected_hwnd
+            ),
+        );
+    }
     Ok(next)
 }
 
@@ -414,6 +424,18 @@ async fn resolve_mirror_download_url(state: State<'_, AppState>) -> Result<Mirro
     let config = state.current_config();
     let current_version = state.app.package_info().version.to_string();
     let result = update_ops::resolve_mirror_download_with_cdk(&current_version, &config.mirror_chan_sdk).await?;
+    Ok(result)
+}
+
+#[tauri::command]
+async fn validate_mirror_cdk(cdk: String, state: State<'_, AppState>) -> Result<MirrorCdkValidationInfo, String> {
+    let current_version = state.app.package_info().version.to_string();
+    let result = update_ops::validate_mirror_cdk(&current_version, &cdk).await?;
+    if let Some(code) = result.mirror_code {
+        state.log("INFO", format!("mirror cdk validation failed with code={code}"));
+    } else {
+        state.log("INFO", "mirror cdk validation passed");
+    }
     Ok(result)
 }
 
@@ -819,7 +841,8 @@ pub fn run() {
             apply_downloaded_update,
             check_for_updates,
             download_update_package,
-            resolve_mirror_download_url
+            resolve_mirror_download_url,
+            validate_mirror_cdk
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

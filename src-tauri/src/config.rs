@@ -26,6 +26,7 @@ const VALUE_MUTE_ON_HIDE: &str = "MuteOnHide";
 const VALUE_UPDATE_SOURCE: &str = "UpdateSource";
 const VALUE_DOWNLOAD_SOURCE: &str = "DownloadSource";
 const VALUE_MIRROR_CHAN_SDK: &str = "MirrorChanSdk";
+const VALUE_AUTO_CHECK_UPDATES: &str = "AutoCheckUpdates";
 const VALUE_MOUSE_SIDE_BUTTON_LISTENER: &str = "MouseSideButtonListener";
 const VALUE_PRIVACY_CONSENT: &str = "PrivacyConsent";
 
@@ -83,6 +84,9 @@ pub fn load_config() -> Result<AppConfig, String> {
     }
     if let Some(mirror_chan_sdk) = read_string_value(key.raw(), VALUE_MIRROR_CHAN_SDK)? {
         config.mirror_chan_sdk = mirror_chan_sdk;
+    }
+    if let Some(auto_check_updates) = read_bool_value(key.raw(), VALUE_AUTO_CHECK_UPDATES)? {
+        config.auto_check_updates = auto_check_updates;
     }
     if let Some(mouse_side_button_listener) =
         read_bool_value(key.raw(), VALUE_MOUSE_SIDE_BUTTON_LISTENER)?
@@ -163,6 +167,11 @@ pub fn save_config(config: &AppConfig) -> Result<(), String> {
     write_string_value(key.raw(), VALUE_UPDATE_SOURCE, &config.update_source)?;
     write_string_value(key.raw(), VALUE_DOWNLOAD_SOURCE, &config.download_source)?;
     write_string_value(key.raw(), VALUE_MIRROR_CHAN_SDK, &config.mirror_chan_sdk)?;
+    write_bool_value(
+        key.raw(),
+        VALUE_AUTO_CHECK_UPDATES,
+        config.auto_check_updates,
+    )?;
     write_bool_value(
         key.raw(),
         VALUE_MOUSE_SIDE_BUTTON_LISTENER,
