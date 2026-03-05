@@ -19,7 +19,7 @@ pub const UPDATE_DOWNLOAD_PROGRESS_EVENT: &str = "skihide://update-download-prog
 
 const MIRROR_ENDPOINT: &str = "https://mirrorchyan.com/api/resources/SkiHide/latest";
 const SKIHIDE_ENDPOINT: &str = "https://update.skihide.xyz/api";
-const RAINYUN_CDN_BASE: &str = "https://flvsrttb.cn-nb1.rainapp.top/v2/download";
+const RAINYUN_CDN_BASE: &str = "https://skihide.cn-nb1.rains3.com";
 const GITHUB_RELEASE_BASE: &str = "https://github.com/SmailPang/SkiHide/releases/download";
 
 #[derive(Deserialize)]
@@ -386,7 +386,7 @@ fn build_download_candidates(
     source: &str,
     latest_version: &str,
 ) -> Vec<String> {
-    let version = latest_version.trim().trim_start_matches('v').trim_start_matches('V');
+    let version = latest_version.trim();
     if version.is_empty() {
         return Vec::new();
     }

@@ -1,6 +1,6 @@
 [package]
 name = "skihide"
-version = "2.0.0-Alpha1"
+version = "1.4.0"
 description = "SkiHide rewritten with Tauri v2"
 authors = ["OpenAI"]
 edition = "2021"
