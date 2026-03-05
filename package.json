@@ -1,0 +1,27 @@
+{
+  "name": "skihide-tauri",
+  "private": true,
+  "version": "1.4.0",
+  "type": "module",
+  "scripts": {
+    "clean": "node -e \"const fs=require('fs'); const path=require('path'); const targets=['dist','.pnpm-store','src-tauri/target','src-tauri/run.out','src-tauri/run.err']; for (const t of targets){ const p=path.resolve(t); if (fs.existsSync(p)){ fs.rmSync(p,{recursive:true,force:true}); console.log('removed',t); } }\"",
+    "dev": "vite --host 0.0.0.0 --port 1420",
+    "build": "vue-tsc --noEmit && vite build",
+    "build:clean": "pnpm run clean && pnpm run build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.8.0",
+    "vue": "^3.5.13",
+    "vue-i18n": "^9.14.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.8.5",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "vue-tsc": "^2.2.0"
+  },
+  "packageManager": "pnpm@10.30.3"
+}

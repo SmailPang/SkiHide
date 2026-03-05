@@ -1,0 +1,38 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "SkiHide",
+  "version": "1.4.0",
+  "identifier": "com.skihide.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "SkiHide",
+        "center": true,
+        "width": 400,
+        "height": 540,
+        "minWidth": 400,
+        "minHeight": 540,
+        "maxWidth": 400,
+        "maxHeight": 540,
+        "resizable": false,
+        "maximizable": false,
+        "visible": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.ico"]
+  }
+}
