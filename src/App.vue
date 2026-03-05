@@ -7,10 +7,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { AppConfig, CacheCleanupOptions, CacheCleanupReport, MemoryCleanupReport, MirrorDownloadInfo, UpdateCheckInfo, UpdateDownloadResult, WindowInfo } from './types';
+import type { AppConfig, CacheCleanupOptions, CacheCleanupReport, MemoryCleanupReport, MirrorCdkValidationInfo, MirrorDownloadInfo, UpdateCheckInfo, UpdateDownloadResult, WindowInfo } from './types';
 
 type PageKey = 'home' | 'toolbox' | 'settings';
-type NoticeType = 'true' | 'false' | 'warn';
+type NoticeType = 'true' | 'false' | 'warn' | 'info';
 type OptionValue =
   | 'system'
   | 'light'
@@ -66,6 +66,8 @@ const mirrorChanSdk = ref('');
 const savedMirrorChanSdk = ref('');
 const downloadSource = ref<'mirror_chan' | 'github' | 'rainyun_cdn'>('rainyun_cdn');
 const savedDownloadSource = ref<'mirror_chan' | 'github' | 'rainyun_cdn'>('rainyun_cdn');
+const autoCheckUpdates = ref(true);
+const savedAutoCheckUpdates = ref(true);
 const memoryAutoCleanup = ref(false);
 const memoryCleanupInterval = ref('5');
 const memoryCleanupUnit = ref<'seconds' | 'minutes' | 'hours'>('minutes');
@@ -117,7 +119,8 @@ const settingsDirty = computed(
     muteOnHide.value !== savedMuteOnHide.value ||
     updateSource.value !== savedUpdateSource.value ||
     mirrorChanSdk.value !== savedMirrorChanSdk.value ||
-    downloadSource.value !== savedDownloadSource.value,
+    downloadSource.value !== savedDownloadSource.value ||
+    autoCheckUpdates.value !== savedAutoCheckUpdates.value,
 );
 const silentStartDisabled = computed(() => !autoStart.value);
 const fontScale = computed(() => { switch (fontSize.value) { case 'small': return 0.92; case 'large': return 1.08; case 'xlarge': return 1.16; default: return 1; } });
@@ -153,6 +156,7 @@ const updateInProgress = ref(false);
 const windowsLoading = ref(false);
 const privacyConsentAccepted = ref(false);
 const privacyDialogOpen = ref(false);
+const startupUpdateChecked = ref(false);
 
 const OPEN_SETTINGS_EVENT = 'skihide://open-settings';
 const UPDATE_DOWNLOAD_PROGRESS_EVENT = 'skihide://update-download-progress';
@@ -197,13 +201,28 @@ async function saveMirrorChanSdk() {
     mirrorChanSdkError.value = t('settings.mirrorChanSdkRequired');
     return;
   }
+
+  try {
+    const validation = await invoke<MirrorCdkValidationInfo>('validate_mirror_cdk', { cdk: nextSdk });
+    if (!validation.valid || validation.mirror_code !== null) {
+      const message = validation.mirror_code !== null
+        ? mapMirrorError(validation.mirror_code, validation.mirror_message)
+        : t('common.saveFailed');
+      mirrorChanSdkError.value = message;
+      notify({ title: t('common.saveFailed'), content: message, type: 'warn' });
+      return;
+    }
+  } catch (error) {
+    const message = String(error);
+    mirrorChanSdkError.value = message;
+    notify({ title: t('common.saveFailed'), content: message, type: 'false' });
+    return;
+  }
+
   mirrorChanSdk.value = nextSdk;
   mirrorChanSdkDraft.value = nextSdk;
   mirrorChanSdkError.value = '';
-  if (shouldStartUpdate) {
-    downloadSource.value = 'mirror_chan';
-  }
-  if (downloadSource.value === 'mirror_chan' && !nextSdk) downloadSource.value = 'rainyun_cdn';
+  downloadSource.value = 'mirror_chan';
   mirrorChanSdkDialogOpen.value = false;
   returnToUpdateAfterMirrorDialog.value = false;
   try {
@@ -264,6 +283,12 @@ async function openUpdateDialog() {
   } catch (error) {
     notify({ title: t('toolbox.checkUpdates'), content: String(error), type: 'false' });
   }
+}
+async function runStartupUpdateCheck() {
+  if (startupUpdateChecked.value || !privacyConsentAccepted.value || !autoCheckUpdates.value) return;
+  startupUpdateChecked.value = true;
+  notify({ title: t('toolbox.checkUpdates'), content: '正在检查更新', type: 'info' });
+  await openUpdateDialog();
 }
 function closeUpdateDialog() {
   if (updateInProgress.value || updateClosePromptOpen.value) return;
@@ -347,7 +372,7 @@ function openDangerDialog() { dangerDialogOpen.value = true; }
 function closeDangerDialog() { dangerDialogOpen.value = false; }
 function continueDangerAction() {
   dangerDialogOpen.value = false;
-  notify({ title: t('toolbox.dangerAccepted'), content: t('toolbox.dangerAcceptedDesc'), type: 'warn' });
+  notify({ title: t('toolbox.dangerAccepted'), content: t('toolbox.dangerAcceptedDesc'), type: 'info' });
 }
 function renderSimpleMarkdown(markdown: string) {
   const escapeHtml = (value: string) =>
@@ -408,6 +433,7 @@ async function saveSettings() {
         update_source: updateSource.value,
         download_source: downloadSource.value,
         mirror_chan_sdk: mirrorChanSdk.value,
+        auto_check_updates: autoCheckUpdates.value,
         mouse_side_button_listener: listenMouseSideButton.value,
       },
     });
@@ -420,6 +446,7 @@ async function saveSettings() {
     savedUpdateSource.value = updateSource.value;
     savedMirrorChanSdk.value = mirrorChanSdk.value;
     savedDownloadSource.value = downloadSource.value;
+    savedAutoCheckUpdates.value = autoCheckUpdates.value;
     silentStart.value = savedSilentStart.value;
     languageOpen.value = false;
     themeOpen.value = false;
@@ -443,6 +470,7 @@ function discardSettings() {
   mirrorChanSdk.value = savedMirrorChanSdk.value;
   mirrorChanSdkDraft.value = savedMirrorChanSdk.value;
   downloadSource.value = savedDownloadSource.value;
+  autoCheckUpdates.value = savedAutoCheckUpdates.value;
   if (!mirrorChanSdkConfigured.value && downloadSource.value === 'mirror_chan') downloadSource.value = 'rainyun_cdn';
   locale.value = savedLanguage.value;
   languageOpen.value = false;
@@ -556,6 +584,8 @@ async function loadConfigFromBackend() {
   const normalizedDownloadSource = nextDownloadSource === 'mirror_chan' && !mirrorChanSdk.value.trim() ? 'rainyun_cdn' : nextDownloadSource;
   downloadSource.value = normalizedDownloadSource;
   savedDownloadSource.value = normalizedDownloadSource;
+  autoCheckUpdates.value = config.auto_check_updates ?? true;
+  savedAutoCheckUpdates.value = autoCheckUpdates.value;
   listenMouseSideButton.value = Boolean(config.mouse_side_button_listener);
   privacyConsentAccepted.value = Boolean(config.privacy_consent);
 
@@ -809,6 +839,7 @@ async function acceptPrivacyConsent() {
     });
     privacyConsentAccepted.value = true;
     privacyDialogOpen.value = false;
+    await runStartupUpdateCheck();
   } catch (error) {
     notify({ title: t('common.saveFailed'), content: String(error), type: 'false' });
   }
@@ -831,6 +862,7 @@ onMounted(async () => {
   try {
     await loadConfigFromBackend();
     privacyDialogOpen.value = !privacyConsentAccepted.value;
+    await runStartupUpdateCheck();
     await invoke('set_hotkey_enabled', { enabled: false });
     await refreshHomeWindows();
     scheduleMemoryCleanup();
@@ -1049,8 +1081,15 @@ onBeforeUnmount(() => {
             <div class="settings-row"><span class="settings-label settings-label-child">{{ t('settings.silentStart') }}</span><button :class="['settings-switch', { active: silentStart, disabled: silentStartDisabled }]" type="button" role="switch" :aria-checked="silentStart" :aria-disabled="silentStartDisabled" @click="toggleSilentStart"><span class="settings-switch-thumb" /></button></div>
             <div class="settings-row"><span class="settings-label">{{ t('settings.muteOnHide') }}</span><button :class="['settings-switch', { active: muteOnHide }]" type="button" role="switch" :aria-checked="muteOnHide" @click="muteOnHide = !muteOnHide"><span class="settings-switch-thumb" /></button></div>
             <div class="settings-section-title settings-section-title-program">{{ t('settings.updates') }}</div>
+            <div class="settings-row"><span class="settings-label">{{ t('settings.autoCheckUpdates') }}</span><button :class="['settings-switch', { active: autoCheckUpdates }]" type="button" role="switch" :aria-checked="autoCheckUpdates" @click="autoCheckUpdates = !autoCheckUpdates"><span class="settings-switch-thumb" /></button></div>
             <div class="settings-row">
-              <span class="settings-label">{{ t('settings.updateSource') }}</span>
+              <span class="settings-label settings-label-with-hint">
+                {{ t('settings.updateSource') }}
+                <span class="settings-hint" tabindex="0">
+                  <span class="settings-hint-icon" aria-hidden="true">i</span>
+                  <span class="settings-hint-tooltip">{{ t('settings.sourceHint') }}</span>
+                </span>
+              </span>
               <div class="custom-select">
                 <button :class="['custom-select-trigger', { open: updateSourceOpen }]" type="button" @click.stop="toggleUpdateSourceMenu"><span>{{ currentUpdateSourceLabel }}</span></button>
                 <Transition name="dropdown-fade">
@@ -1061,7 +1100,13 @@ onBeforeUnmount(() => {
               </div>
             </div>
             <div class="settings-row">
-              <span class="settings-label">{{ t('settings.downloadSource') }}</span>
+              <span class="settings-label settings-label-with-hint">
+                {{ t('settings.downloadSource') }}
+                <span class="settings-hint" tabindex="0">
+                  <span class="settings-hint-icon" aria-hidden="true">i</span>
+                  <span class="settings-hint-tooltip">{{ t('settings.sourceHint') }}</span>
+                </span>
+              </span>
               <div class="custom-select">
                 <button :class="['custom-select-trigger', { open: downloadSourceOpen }]" type="button" @click.stop="toggleDownloadSourceMenu"><span>{{ currentDownloadSourceLabel }}</span></button>
                 <Transition name="dropdown-fade">

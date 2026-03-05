@@ -100,6 +100,7 @@ export const messages = {
       autoStart: '开机自启动',
       silentStart: '静默启动',
       muteOnHide: '隐藏时静音',
+      autoCheckUpdates: '自动检查更新',
       updateSource: '更新源',
       mirrorChanSdk: 'Mirror酱 SDK',
       mirrorChanSdkDialogTitle: '请输入 Mirror酱 SDK',
@@ -109,6 +110,7 @@ export const messages = {
       mirrorChanSdkRequired: 'Mirror酱 SDK 不能为空',
       mirrorChanSdkPlaceholder: '请输入 Mirror酱 SDK',
       downloadSource: '下载源',
+      sourceHint: '如果当前源不可用请尝试更换',
     },
     updateDialog: {
       title: '发现新版本',
@@ -254,6 +256,7 @@ export const messages = {
       autoStart: '開機自啟動',
       silentStart: '靜默啟動',
       muteOnHide: '隱藏時靜音',
+      autoCheckUpdates: '自動檢查更新',
       updateSource: '更新源',
       mirrorChanSdk: 'Mirror酱 SDK',
       mirrorChanSdkDialogTitle: '請輸入 Mirror酱 SDK',
@@ -263,6 +266,7 @@ export const messages = {
       mirrorChanSdkRequired: 'Mirror酱 SDK 不能為空',
       mirrorChanSdkPlaceholder: '請輸入 Mirror酱 SDK',
       downloadSource: '下載源',
+      sourceHint: '如果当前源不可用请尝试更换',
     },
     updateDialog: {
       title: '發現新版本',
@@ -408,6 +412,7 @@ export const messages = {
       autoStart: 'Launch at Startup',
       silentStart: 'Silent Launch',
       muteOnHide: 'Mute When Hidden',
+      autoCheckUpdates: 'Auto Check Updates',
       updateSource: 'Update Source',
       mirrorChanSdk: 'MirrorChyan SDK',
       mirrorChanSdkDialogTitle: 'Enter MirrorChyan SDK',
@@ -417,6 +422,7 @@ export const messages = {
       mirrorChanSdkRequired: 'MirrorChyan SDK cannot be empty',
       mirrorChanSdkPlaceholder: 'Enter MirrorChyan SDK',
       downloadSource: 'Download Source',
+      sourceHint: 'If the current source is unavailable, try switching to another one.',
     },
     updateDialog: {
       title: 'New Version Found',
@@ -562,6 +568,7 @@ export const messages = {
       autoStart: '自動起動',
       silentStart: 'サイレント起動',
       muteOnHide: '非表示時にミュート',
+      autoCheckUpdates: '起動時に自動更新チェック',
       updateSource: '更新元',
       mirrorChanSdk: 'MirrorChyan SDK',
       mirrorChanSdkDialogTitle: 'MirrorChyan SDK を入力',
@@ -571,6 +578,7 @@ export const messages = {
       mirrorChanSdkRequired: 'MirrorChyan SDK は空にできません',
       mirrorChanSdkPlaceholder: 'MirrorChyan SDK を入力',
       downloadSource: 'ダウンロード元',
+      sourceHint: '現在のソースが利用できない場合は、別のソースに切り替えてください。',
     },
     updateDialog: {
       title: '新バージョンを検出',

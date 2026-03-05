@@ -17,6 +17,7 @@ export interface AppConfig {
   update_source: string;
   download_source: string;
   mirror_chan_sdk: string;
+  auto_check_updates: boolean;
   mouse_side_button_listener: boolean;
   privacy_consent: boolean;
 }
@@ -33,6 +34,7 @@ export interface ConfigUpdate {
   update_source?: string | null;
   download_source?: string | null;
   mirror_chan_sdk?: string | null;
+  auto_check_updates?: boolean | null;
   mouse_side_button_listener?: boolean | null;
   privacy_consent?: boolean | null;
 }
@@ -88,6 +90,12 @@ export interface UpdateDownloadResult {
 export interface MirrorDownloadInfo {
   url: string | null;
   sha256: string | null;
+  mirror_code: number | null;
+  mirror_message: string | null;
+}
+
+export interface MirrorCdkValidationInfo {
+  valid: boolean;
   mirror_code: number | null;
   mirror_message: string | null;
 }

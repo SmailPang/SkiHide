@@ -8,7 +8,7 @@ pub struct WindowInfo {
     pub is_hidden: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppConfig {
     pub hotkey: String,
     pub language: String,
@@ -21,6 +21,7 @@ pub struct AppConfig {
     pub update_source: String,
     pub download_source: String,
     pub mirror_chan_sdk: String,
+    pub auto_check_updates: bool,
     pub mouse_side_button_listener: bool,
     pub privacy_consent: bool,
 }
@@ -39,6 +40,7 @@ impl Default for AppConfig {
             update_source: "mirror_chan".to_string(),
             download_source: "rainyun_cdn".to_string(),
             mirror_chan_sdk: String::new(),
+            auto_check_updates: true,
             mouse_side_button_listener: false,
             privacy_consent: false,
         }
@@ -58,6 +60,7 @@ pub struct ConfigUpdate {
     pub update_source: Option<String>,
     pub download_source: Option<String>,
     pub mirror_chan_sdk: Option<String>,
+    pub auto_check_updates: Option<bool>,
     pub mouse_side_button_listener: Option<bool>,
     pub privacy_consent: Option<bool>,
 }
@@ -120,6 +123,13 @@ pub struct UpdateDownloadResult {
 pub struct MirrorDownloadInfo {
     pub url: Option<String>,
     pub sha256: Option<String>,
+    pub mirror_code: Option<i32>,
+    pub mirror_message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MirrorCdkValidationInfo {
+    pub valid: bool,
     pub mirror_code: Option<i32>,
     pub mirror_message: Option<String>,
 }

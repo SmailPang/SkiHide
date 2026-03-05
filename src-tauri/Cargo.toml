@@ -1,6 +1,6 @@
 [package]
 name = "skihide"
-version = "1.4.0"
+version = "2.0.0-Alpha1"
 description = "SkiHide rewritten with Tauri v2"
 authors = ["OpenAI"]
 edition = "2021"
@@ -9,6 +9,7 @@ edition = "2021"
 tauri-build = { version = "2.0.2", features = [] }
 
 [dependencies]
+chrono = "0.4"
 futures-util = "0.3"
 parking_lot = "0.12"
 reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"] }
