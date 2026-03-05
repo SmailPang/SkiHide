@@ -1070,7 +1070,7 @@ onBeforeUnmount(() => {
                         </button>
                       </div>
                     </div>
-                    <div class="toolbox-about-version" @click.stop>V2.0.0-Alpha1</div>
+                    <div class="toolbox-about-version" @click.stop>V2.0.0</div>
                     <button class="toolbox-action-button toolbox-about-update" type="button" @click.stop="openUpdateDialog">{{ t('toolbox.checkUpdates') }}</button>
                   </div>
                 </Transition>
