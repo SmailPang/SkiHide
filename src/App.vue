@@ -822,6 +822,16 @@ function handleHotkeyRecord(event: KeyboardEvent) {
   listenSettingsError.value = '';
   void syncHotkeyWhileListening();
 }
+function preventWebviewRefresh(event: KeyboardEvent) {
+  const key = event.key.toLowerCase();
+  const isCtrlOrMetaR = (event.ctrlKey || event.metaKey) && key === 'r';
+  const isF5 = event.key === 'F5';
+  const isCtrlF5 = (event.ctrlKey || event.metaKey) && isF5;
+  if (isCtrlOrMetaR || isF5 || isCtrlF5) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+}
 watch([memoryAutoCleanup, memoryCleanupInterval, memoryCleanupUnit], () => {
   scheduleMemoryCleanup();
 });
@@ -855,6 +865,7 @@ onMounted(async () => {
   colorSchemeQuery.addEventListener('change', handleColorSchemeChange);
   document.addEventListener('click', handleDocumentClick);
   window.addEventListener('keydown', handleHotkeyRecord, true);
+  window.addEventListener('keydown', preventWebviewRefresh, true);
   window.addEventListener('resize', updateToolboxScrollbar);
   window.addEventListener('mousemove', handleToolboxGlobalMouseMove);
   window.addEventListener('mouseup', handleToolboxGlobalMouseUp);
@@ -884,6 +895,7 @@ onBeforeUnmount(() => {
   colorSchemeQuery?.removeEventListener('change', handleColorSchemeChange);
   document.removeEventListener('click', handleDocumentClick);
   window.removeEventListener('keydown', handleHotkeyRecord, true);
+  window.removeEventListener('keydown', preventWebviewRefresh, true);
   window.removeEventListener('resize', updateToolboxScrollbar);
   window.removeEventListener('mousemove', handleToolboxGlobalMouseMove);
   window.removeEventListener('mouseup', handleToolboxGlobalMouseUp);
