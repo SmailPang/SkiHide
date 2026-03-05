@@ -1,0 +1,116 @@
+name: Build (Releases)
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure release has tag
+        shell: pwsh
+        run: |
+          if (-not "${{ github.event.release.tag_name }}") {
+            Write-Error "Release 没有关联 tag。请在发布 Release 时选择/创建一个 tag（例如 v2.0.0-Alpha1）。"
+          }
+
+      - name: Resolve version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = "${{ github.event.release.tag_name }}"
+          "VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Resolved VERSION=$v"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build single-file EXE (no bundle)
+        run: pnpm tauri build --no-bundle
+
+      - name: Prepare versioned artifacts
+        shell: pwsh
+        run: |
+          $exe = "src-tauri/target/release/skihide.exe"
+          if (!(Test-Path $exe)) { throw "Expected $exe not found." }
+
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+
+          $version = "${env:VERSION}"
+          $exeOut = "out/SkiHide-$version.exe"
+          Copy-Item $exe -Destination $exeOut -Force
+
+          Write-Host "Artifacts:"
+          Get-ChildItem out
+
+      - name: Upload assets to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*.exe
+
+      - name: Notify SkiHide update API and validate response
+        if: ${{ github.repository_owner == 'SmailPang' }}
+        shell: pwsh
+        env:
+          SKIHIDEUPDATETOKEN: ${{ secrets.SkiHideUpdateToken }}
+        run: |
+          if (-not "$env:SKIHIDEUPDATETOKEN") {
+            throw "Missing required secret: SKIHIDEUPDATETOKEN"
+          }
+
+          $version = "${env:VERSION}"
+          $expectedKey = "SkiHide-$version.exe"
+
+          $base = "https://update.skihide.xyz/api/build"
+          $queryVersion = [System.Uri]::EscapeDataString($version)
+          $queryToken = [System.Uri]::EscapeDataString($env:SKIHIDEUPDATETOKEN)
+          $url = "$base?version=$queryVersion&pull_token=$queryToken"
+
+          Write-Host "Calling update API for version: $version"
+          $resp = Invoke-RestMethod -Method Get -Uri $url -TimeoutSec 60
+
+          if ($null -eq $resp) {
+            throw "Update API returned empty response"
+          }
+          if ($resp.ok -ne $true) {
+            throw "Update API validation failed: ok is not true"
+          }
+          if ("$($resp.version)" -ne $version) {
+            throw "Update API validation failed: version mismatch. expected=$version actual=$($resp.version)"
+          }
+          if ("$($resp.key)" -ne $expectedKey) {
+            throw "Update API validation failed: key mismatch. expected=$expectedKey actual=$($resp.key)"
+          }
+
+          Write-Host "Update API validation passed."
+
+      - name: Trigger MirrorChyanUploading
+        if: ${{ github.repository_owner == 'SmailPang' }}
+        shell: bash
+        run: |
+          gh workflow run --repo $GITHUB_REPOSITORY mirrorchyan_release.yml -f tag=${{ env.VERSION }}
+          gh workflow run --repo $GITHUB_REPOSITORY mirrorchyan_release_note.yml -f tag=${{ env.VERSION }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
