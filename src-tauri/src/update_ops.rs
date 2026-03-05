@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::path::PathBuf;
 
 use futures_util::StreamExt;
 use reqwest::Client;
@@ -43,13 +43,7 @@ struct SkiHideResponse {
     #[allow(dead_code)]
     build: Option<i64>,
     update_log: String,
-    download: HashMap<String, SkiHideDownloadEntry>,
     sha256: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct SkiHideDownloadEntry {
-    url: String,
 }
 
 pub async fn check_for_updates(
@@ -106,11 +100,8 @@ pub async fn check_for_updates(
                 config.download_source == "mirror_chan" && !config.mirror_chan_sdk.trim().is_empty();
             if !can_use_mirror_download {
                 let official = fetch_skihide_info(&client, &config.language).await?;
-                download_candidates = build_download_candidates(
-                    &official.download,
-                    &config.download_source,
-                    &data.version_name,
-                );
+                download_candidates =
+                    build_download_candidates(&config.download_source, &data.version_name);
                 download_url = download_candidates.first().cloned();
                 if sha256.is_none() {
                     sha256 = official.sha256.clone();
@@ -138,7 +129,7 @@ pub async fn check_for_updates(
     let normalized_latest = normalize_version(&official.version)?;
     let has_update = normalized_latest > normalized_current;
     let download_candidates = if has_update {
-        build_download_candidates(&official.download, &config.download_source, &official.version)
+        build_download_candidates(&config.download_source, &official.version)
     } else {
         Vec::new()
     };
@@ -381,11 +372,7 @@ async fn fetch_skihide_info(client: &Client, language: &str) -> Result<SkiHideRe
         .map_err(|error| format!("failed to parse skihide response: {error}"))
 }
 
-fn build_download_candidates(
-    download_map: &HashMap<String, SkiHideDownloadEntry>,
-    source: &str,
-    latest_version: &str,
-) -> Vec<String> {
+fn build_download_candidates(source: &str, latest_version: &str) -> Vec<String> {
     let version = latest_version.trim();
     if version.is_empty() {
         return Vec::new();
@@ -394,24 +381,11 @@ fn build_download_candidates(
     let rainyun_url = build_rainyun_cdn_url(version);
     let github_url = build_github_url(version);
 
-    let mut result = if source == "github" {
+    if source == "github" {
         vec![github_url, rainyun_url]
     } else {
         vec![rainyun_url, github_url]
-    };
-
-    if let Some(url) = find_official_download(download_map, "rainyun_cdn") {
-        if !result.iter().any(|item| item == &url) {
-            result.push(url);
-        }
     }
-    if let Some(url) = find_official_download(download_map, "github") {
-        if !result.iter().any(|item| item == &url) {
-            result.push(url);
-        }
-    }
-
-    result
 }
 
 fn build_rainyun_cdn_url(version: &str) -> String {
@@ -420,25 +394,6 @@ fn build_rainyun_cdn_url(version: &str) -> String {
 
 fn build_github_url(version: &str) -> String {
     format!("{GITHUB_RELEASE_BASE}/{version}/SkiHide-{version}.exe")
-}
-
-fn find_official_download(
-    download_map: &HashMap<String, SkiHideDownloadEntry>,
-    key: &str,
-) -> Option<String> {
-    let normalize = |value: &str| {
-        value
-            .to_ascii_lowercase()
-            .chars()
-            .filter(|ch| ch.is_ascii_alphanumeric())
-            .collect::<String>()
-    };
-    let expected = normalize(key);
-
-    download_map
-        .iter()
-        .find(|(entry_key, _)| normalize(entry_key) == expected)
-        .map(|(_, entry)| entry.url.clone())
 }
 
 fn resolve_updates_dir() -> Result<PathBuf, String> {
