@@ -35,10 +35,29 @@ jobs:
       - name: Build single-file EXE (no bundle)
         run: pnpm tauri build --no-bundle
 
+      - name: Prepare versioned preview artifact
+        shell: pwsh
+        run: |
+          $cargoToml = Get-Content -Path "src-tauri/Cargo.toml" -Raw
+          if ($cargoToml -notmatch '(?m)^version\s*=\s*"([^"]+)"') {
+            throw "Failed to resolve version from src-tauri/Cargo.toml"
+          }
+          $version = $Matches[1]
+
+          $exe = "src-tauri/target/release/skihide.exe"
+          if (!(Test-Path $exe)) {
+            throw "Expected $exe not found"
+          }
+
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          $outExe = "out/SkiHide-$version.exe"
+          Copy-Item $exe -Destination $outExe -Force
+          Write-Host "Prepared: $outExe"
+
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
         with:
           name: skihide-preview-windows-x64
-          path: src-tauri/target/release/skihide.exe
+          path: out/SkiHide-*.exe
           if-no-files-found: error
           retention-days: 14
