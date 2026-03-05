@@ -86,7 +86,9 @@ jobs:
           $base = "https://update.skihide.xyz/api/build"
           $queryVersion = [System.Uri]::EscapeDataString($version)
           $queryToken = [System.Uri]::EscapeDataString($env:SKIHIDEUPDATETOKEN)
-          $url = "$base?version=$queryVersion&pull_token=$queryToken"
+          $uriBuilder = [System.UriBuilder]::new($base)
+          $uriBuilder.Query = "version=$queryVersion&pull_token=$queryToken"
+          $url = $uriBuilder.Uri.AbsoluteUri
 
           Write-Host "Calling update API for version: $version"
           $resp = Invoke-RestMethod -Method Get -Uri $url -TimeoutSec 60
