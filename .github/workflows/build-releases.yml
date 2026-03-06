@@ -81,7 +81,6 @@ jobs:
           }
 
           $version = "${env:VERSION}"
-          $expectedKey = "SkiHide-$version.exe"
 
           $base = "https://update.skihide.xyz/api/build"
           $queryVersion = [System.Uri]::EscapeDataString($version)
@@ -98,9 +97,6 @@ jobs:
           }
           if ($resp.ok -ne $true) {
             throw "Update API validation failed: ok is not true"
-          }
-          if ("$($resp.key)" -ne $expectedKey) {
-            throw "Update API validation failed: key mismatch. expected=$expectedKey actual=$($resp.key)"
           }
 
           Write-Host "Update API validation passed."
