@@ -1,4 +1,4 @@
-name: Build (Releases)
+﻿name: Build (Releases)
 
 on:
   release:
@@ -19,7 +19,7 @@ jobs:
         shell: pwsh
         run: |
           if (-not "${{ github.event.release.tag_name }}") {
-            Write-Error "Release 没有关联 tag。请在发�?Release 时选择/创建一�?tag（例�?v2.0.0-Alpha1）�?
+            Write-Error "Release does not have a tag. Please publish the release with a tag (for example v2.0.0)."
           }
 
       - name: Resolve version
@@ -86,7 +86,9 @@ jobs:
           $base = "https://update.skihide.xyz/api/build"
           $queryVersion = [System.Uri]::EscapeDataString($version)
           $queryToken = [System.Uri]::EscapeDataString($env:SKIHIDEUPDATETOKEN)
-          $url = "$base?version=$queryVersion&pull_token=$queryToken"
+          $uriBuilder = [System.UriBuilder]::new($base)
+          $uriBuilder.Query = "version=$queryVersion&pull_token=$queryToken"
+          $url = $uriBuilder.Uri.AbsoluteUri
 
           Write-Host "Calling update API for version: $version"
           $resp = Invoke-RestMethod -Method Get -Uri $url -TimeoutSec 60
