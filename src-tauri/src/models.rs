@@ -80,6 +80,13 @@ pub struct MemoryCleanupReport {
     pub reclaimed_bytes: u64,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct MemoryStatusInfo {
+    pub total_bytes: u64,
+    pub used_bytes: u64,
+    pub usage_percent: u32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CacheCleanupOptions {
     pub system_cache: bool,

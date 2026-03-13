@@ -8,11 +8,32 @@ use windows::Win32::{
             TH32CS_SNAPPROCESS,
         },
         ProcessStatus::{EmptyWorkingSet, GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS},
+        SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX},
         Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_QUOTA, PROCESS_VM_READ},
     },
 };
 
-use crate::models::MemoryCleanupReport;
+use crate::models::{MemoryCleanupReport, MemoryStatusInfo};
+
+pub fn get_memory_status() -> Result<MemoryStatusInfo, String> {
+    let mut memory_status = MEMORYSTATUSEX {
+        dwLength: size_of::<MEMORYSTATUSEX>() as u32,
+        ..Default::default()
+    };
+
+    unsafe { GlobalMemoryStatusEx(&mut memory_status) }
+        .map_err(|error| format!("failed to query global memory status: {error}"))?;
+
+    let total_bytes = memory_status.ullTotalPhys;
+    let available_bytes = memory_status.ullAvailPhys;
+    let used_bytes = total_bytes.saturating_sub(available_bytes);
+
+    Ok(MemoryStatusInfo {
+        total_bytes,
+        used_bytes,
+        usage_percent: memory_status.dwMemoryLoad,
+    })
+}
 
 pub fn cleanup_system_memory() -> Result<MemoryCleanupReport, String> {
     let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) }

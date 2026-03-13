@@ -35,7 +35,7 @@ use crate::{
     models::{
         AppConfig, CacheCleanupOptions, CacheCleanupReport, ConfigUpdate, LogEntry,
         MirrorCdkValidationInfo, MirrorDownloadInfo,
-        MemoryCleanupReport, UpdateCheckInfo, UpdateDownloadResult, WindowInfo,
+        MemoryCleanupReport, MemoryStatusInfo, UpdateCheckInfo, UpdateDownloadResult, WindowInfo,
     },
 };
 
@@ -364,6 +364,11 @@ fn cleanup_memory(state: State<'_, AppState>) -> Result<MemoryCleanupReport, Str
         ),
     );
     Ok(report)
+}
+
+#[tauri::command]
+fn get_memory_status() -> Result<MemoryStatusInfo, String> {
+    memory_ops::get_memory_status()
 }
 
 #[tauri::command]
@@ -844,6 +849,7 @@ pub fn run() {
             update_config,
             set_hotkey_enabled,
             cleanup_memory,
+            get_memory_status,
             cleanup_cache,
             open_external_url,
             exit_app,

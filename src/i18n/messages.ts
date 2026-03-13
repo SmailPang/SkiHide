@@ -48,6 +48,8 @@ export const messages = {
     toolbox: {
       memoryTitle: '内存清理',
       memorySubtitle: '释放部分占用较高的内存资源',
+      memoryUsage: '当前系统内存占用',
+      memoryUsageHigh: '当前内存占用过高，请尝试清理内存',
       memoryAutoCleanup: '自动清理内存',
       memoryInterval: '清理内存间隔时间',
       intervalInvalid: '间隔时间必须大于且不等于 0',
@@ -206,6 +208,8 @@ export const messages = {
     toolbox: {
       memoryTitle: '記憶體清理',
       memorySubtitle: '釋放部分占用較高的記憶體資源',
+      memoryUsage: '目前系統記憶體占用',
+      memoryUsageHigh: '目前記憶體占用過高，請嘗試清理記憶體',
       memoryAutoCleanup: '自動清理記憶體',
       memoryInterval: '清理間隔時間',
       intervalInvalid: '間隔時間必須大於且不等於 0',
@@ -364,6 +368,8 @@ export const messages = {
     toolbox: {
       memoryTitle: 'Memory Cleanup',
       memorySubtitle: 'Release part of the currently heavy memory usage',
+      memoryUsage: 'Current System Memory Usage',
+      memoryUsageHigh: 'Current memory usage is too high. Please try cleaning memory.',
       memoryAutoCleanup: 'Automatic Memory Cleanup',
       memoryInterval: 'Cleanup Interval',
       intervalInvalid: 'The interval must be greater than 0',
@@ -522,6 +528,8 @@ export const messages = {
     toolbox: {
       memoryTitle: 'メモリクリーン',
       memorySubtitle: '使用率の高いメモリを一部解放します',
+      memoryUsage: '現在のシステムメモリ使用率',
+      memoryUsageHigh: '現在のメモリ使用率が高すぎます。メモリのクリーンをお試しください。',
       memoryAutoCleanup: '自動メモリクリーン',
       memoryInterval: 'クリーン間隔',
       intervalInvalid: '間隔は 0 より大きい必要があります',

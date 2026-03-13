@@ -8,7 +8,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { AppConfig, CacheCleanupOptions, CacheCleanupReport, MemoryCleanupReport, MirrorCdkValidationInfo, MirrorDownloadInfo, UpdateCheckInfo, UpdateDownloadResult, WindowInfo } from './types';
+import type { AppConfig, CacheCleanupOptions, CacheCleanupReport, MemoryCleanupReport, MemoryStatusInfo, MirrorCdkValidationInfo, MirrorDownloadInfo, UpdateCheckInfo, UpdateDownloadResult, WindowInfo } from './types';
 
 type PageKey = 'home' | 'toolbox' | 'settings';
 type NoticeType = 'true' | 'false' | 'warn' | 'info';
@@ -73,6 +73,7 @@ const memoryAutoCleanup = ref(false);
 const memoryCleanupInterval = ref('5');
 const memoryCleanupUnit = ref<'seconds' | 'minutes' | 'hours'>('minutes');
 const memoryCleanupRunning = ref(false);
+const memoryStatus = ref<MemoryStatusInfo | null>(null);
 const cacheSelections = ref({ systemCache: false, tempFiles: false, thumbnailCache: false, appCache: false, recycleBin: false });
 const cacheCleanupRunning = ref(false);
 const languageOpen = ref(false);
@@ -139,6 +140,7 @@ const notices = ref<AppNotice[]>([]);
 let colorSchemeQuery: MediaQueryList | null = null;
 let themeSwitchTimer: number | null = null;
 let memoryCleanupTimer: number | null = null;
+let memoryStatusTimer: number | null = null;
 let toolboxDragStartY = 0;
 let toolboxDragStartScrollTop = 0;
 let toolboxDragging = false;
@@ -159,6 +161,18 @@ const privacyConsentAccepted = ref(false);
 const privacyDialogOpen = ref(false);
 const startupUpdateChecked = ref(false);
 const appVersion = ref('');
+const memoryUsagePercent = computed(() => memoryStatus.value?.usage_percent ?? 0);
+const memoryUsageFillStyle = computed(() => ({ width: `${memoryUsagePercent.value}%` }));
+const memoryUsageState = computed(() => {
+  if (memoryUsagePercent.value >= 90) return 'critical';
+  if (memoryUsagePercent.value >= 70) return 'warning';
+  return 'normal';
+});
+const memoryUsageText = computed(() => {
+  if (!memoryStatus.value) return '-- / --';
+  return `${formatBytes(memoryStatus.value.used_bytes)} / ${formatBytes(memoryStatus.value.total_bytes)}`;
+});
+const memoryUsageWarningVisible = computed(() => memoryUsagePercent.value >= 90);
 
 const OPEN_SETTINGS_EVENT = 'skihide://open-settings';
 const UPDATE_DOWNLOAD_PROGRESS_EVENT = 'skihide://update-download-progress';
@@ -608,6 +622,34 @@ function clearMemoryCleanupScheduler() {
     memoryCleanupTimer = null;
   }
 }
+function formatBytes(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 GB';
+  const gb = bytes / (1024 ** 3);
+  if (gb >= 100) return `${gb.toFixed(0)} GB`;
+  if (gb >= 10) return `${gb.toFixed(1)} GB`;
+  return `${gb.toFixed(2)} GB`;
+}
+async function refreshMemoryStatus() {
+  try {
+    memoryStatus.value = await invoke<MemoryStatusInfo>('get_memory_status');
+  } catch {
+    memoryStatus.value = null;
+  }
+}
+function clearMemoryStatusRefresh() {
+  if (memoryStatusTimer !== null) {
+    window.clearInterval(memoryStatusTimer);
+    memoryStatusTimer = null;
+  }
+}
+function scheduleMemoryStatusRefresh() {
+  clearMemoryStatusRefresh();
+  if (currentPage.value !== 'toolbox' || activeToolboxCard.value !== 'memory') return;
+  void refreshMemoryStatus();
+  memoryStatusTimer = window.setInterval(() => {
+    void refreshMemoryStatus();
+  }, 3000);
+}
 function scheduleMemoryCleanup() {
   clearMemoryCleanupScheduler();
   const intervalMs = memoryCleanupIntervalMs();
@@ -622,6 +664,7 @@ async function runMemoryCleanup(isAutoTrigger = false) {
   memoryCleanupRunning.value = true;
   try {
     const report = await invoke<MemoryCleanupReport>('cleanup_memory');
+    await refreshMemoryStatus();
     if (!isAutoTrigger) {
       const reclaimedMb = (report.reclaimed_bytes / 1024 / 1024).toFixed(2);
       notify({
@@ -837,6 +880,9 @@ function preventWebviewRefresh(event: KeyboardEvent) {
 watch([memoryAutoCleanup, memoryCleanupInterval, memoryCleanupUnit], () => {
   scheduleMemoryCleanup();
 });
+watch([currentPage, activeToolboxCard], () => {
+  scheduleMemoryStatusRefresh();
+});
 function optionLabel(path: string, value: OptionValue) { return t(`${path}.${value}`); }
 function languageLabel(value: LanguageValue) { return languageOptionLabels[value]; }
 function openExternalUrl(url: string) { void invoke('open_external_url', { url }); }
@@ -880,6 +926,7 @@ onMounted(async () => {
     await invoke('set_hotkey_enabled', { enabled: false });
     await refreshHomeWindows();
     scheduleMemoryCleanup();
+    scheduleMemoryStatusRefresh();
     updateProgressUnlisten = await listen<number>(UPDATE_DOWNLOAD_PROGRESS_EVENT, (event) => {
       updateProgress.value = Number(event.payload) || 0;
     });
@@ -903,6 +950,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('mousemove', handleToolboxGlobalMouseMove);
   window.removeEventListener('mouseup', handleToolboxGlobalMouseUp);
   clearMemoryCleanupScheduler();
+  clearMemoryStatusRefresh();
   updateProgressUnlisten?.();
   updateProgressUnlisten = null;
   openSettingsUnlisten?.();
@@ -981,6 +1029,17 @@ onBeforeUnmount(() => {
                 </div>
                 <Transition name="toolbox-expand" @after-enter="handleToolboxExpandTransitionEnd" @after-leave="handleToolboxExpandTransitionEnd">
                   <div v-if="activeToolboxCard === 'memory'" class="toolbox-action-detail">
+                    <div class="toolbox-memory-status" @click.stop>
+                      <div class="toolbox-memory-status-header">
+                        <span class="toolbox-setting-label">{{ t('toolbox.memoryUsage') }}</span>
+                        <span class="toolbox-memory-status-value">{{ memoryUsagePercent }}%</span>
+                      </div>
+                      <div :class="['toolbox-memory-bar', `is-${memoryUsageState}`]">
+                        <div class="toolbox-memory-bar-fill" :style="memoryUsageFillStyle" />
+                      </div>
+                      <div class="toolbox-memory-status-meta">{{ memoryUsageText }}</div>
+                      <p v-if="memoryUsageWarningVisible" class="toolbox-memory-warning">{{ t('toolbox.memoryUsageHigh') }}</p>
+                    </div>
                     <div class="toolbox-setting-row" @click.stop>
                       <span class="toolbox-setting-label">{{ t('toolbox.memoryAutoCleanup') }}</span>
                       <button :class="['settings-switch', 'toolbox-switch', { active: memoryAutoCleanup }]" type="button" role="switch" :aria-checked="memoryAutoCleanup" @click.stop="toggleMemoryAutoCleanup"><span class="settings-switch-thumb" /></button>

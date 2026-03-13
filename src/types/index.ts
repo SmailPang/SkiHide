@@ -52,6 +52,12 @@ export interface MemoryCleanupReport {
   reclaimed_bytes: number;
 }
 
+export interface MemoryStatusInfo {
+  total_bytes: number;
+  used_bytes: number;
+  usage_percent: number;
+}
+
 export interface CacheCleanupOptions {
   system_cache: boolean;
   temp_files: boolean;
