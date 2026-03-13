@@ -3,6 +3,7 @@ import appIconUrl from './assets/app-icon.svg';
 import mirrorchyanUrl from './assets/mirrorchyan.png';
 import raincloudUrl from './assets/raincloud.png';
 import avatarUrl from './assets/touxiang.jpg';
+import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -157,6 +158,7 @@ const windowsLoading = ref(false);
 const privacyConsentAccepted = ref(false);
 const privacyDialogOpen = ref(false);
 const startupUpdateChecked = ref(false);
+const appVersion = ref('');
 
 const OPEN_SETTINGS_EVENT = 'skihide://open-settings';
 const UPDATE_DOWNLOAD_PROGRESS_EVENT = 'skihide://update-download-progress';
@@ -871,6 +873,7 @@ onMounted(async () => {
   window.addEventListener('mouseup', handleToolboxGlobalMouseUp);
   requestAnimationFrame(updateToolboxScrollbar);
   try {
+    appVersion.value = await getVersion();
     await loadConfigFromBackend();
     privacyDialogOpen.value = !privacyConsentAccepted.value;
     await runStartupUpdateCheck();
@@ -1070,7 +1073,7 @@ onBeforeUnmount(() => {
                         </button>
                       </div>
                     </div>
-                    <div class="toolbox-about-version" @click.stop>V2.0.0</div>
+                <div class="toolbox-about-version" @click.stop>V{{ appVersion || '2.0.1-Alpha1' }}</div>
                     <button class="toolbox-action-button toolbox-about-update" type="button" @click.stop="openUpdateDialog">{{ t('toolbox.checkUpdates') }}</button>
                   </div>
                 </Transition>
