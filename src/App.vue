@@ -1129,7 +1129,13 @@ onBeforeUnmount(() => {
               </div>
             </div>
             <div class="settings-row">
-              <span class="settings-label">{{ t('settings.mirrorChanSdk') }}</span>
+              <span class="settings-label settings-label-with-hint">
+                {{ t('settings.mirrorChanSdk') }}
+                <span class="settings-hint" tabindex="0">
+                  <span class="settings-hint-icon" aria-hidden="true">i</span>
+                  <span class="settings-hint-tooltip">{{ t('settings.mirrorChanSdkHint') }}</span>
+                </span>
+              </span>
               <button class="settings-edit-button" type="button" @click="openMirrorChanSdkDialog">{{ t('common.edit') }}</button>
             </div>
           </div>

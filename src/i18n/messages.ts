@@ -103,6 +103,8 @@ export const messages = {
       autoCheckUpdates: '自动检查更新',
       updateSource: '更新源',
       mirrorChanSdk: 'Mirror酱 CDK',
+      mirrorChanSdkHint:
+        'Mirror 酱 是一个付费的第三方应用分发平台，用于提供国内有偿高速下载源。这是一项可选服务，不填入CDK不影响正常使用与更新。',
       mirrorChanSdkDialogTitle: '请输入 Mirror酱 CDK',
       mirrorChanSdkDialogDesc:
         'Mirror酱是独立的第三方软件下载平台，提供付费的软件下载加速服务。如果你有 Mirror酱的 CDK，可以在这里输入。',
@@ -259,6 +261,8 @@ export const messages = {
       autoCheckUpdates: '自動檢查更新',
       updateSource: '更新源',
       mirrorChanSdk: 'Mirror酱 CDK',
+      mirrorChanSdkHint:
+        'Mirror 酱 是一個付費的第三方應用分發平台，用於提供國內有償高速下載源。這是一項可選服務，不填入CDK不影響正常使用與更新。',
       mirrorChanSdkDialogTitle: '請輸入 Mirror酱 CDK',
       mirrorChanSdkDialogDesc:
         'Mirror酱是獨立的第三方軟體下載平台，提供付費的軟體下載加速服務。如果你有 Mirror酱 的 CDK，可以在這裡輸入。',
@@ -415,6 +419,8 @@ export const messages = {
       autoCheckUpdates: 'Auto Check Updates',
       updateSource: 'Update Source',
       mirrorChanSdk: 'MirrorChyan CDK',
+      mirrorChanSdkHint:
+        'MirrorChyan is a paid third-party app distribution platform that provides accelerated download mirrors in mainland China. This service is optional and leaving CDK empty will not affect normal use or updates.',
       mirrorChanSdkDialogTitle: 'Enter MirrorChyan CDK',
       mirrorChanSdkDialogDesc:
         'MirrorChyan is an independent third-party software distribution platform that provides paid accelerated downloads. If you have a MirrorChyan CDK, you can enter it here.',
@@ -571,6 +577,8 @@ export const messages = {
       autoCheckUpdates: '起動時に自動更新チェック',
       updateSource: '更新元',
       mirrorChanSdk: 'MirrorChyan CDK',
+      mirrorChanSdkHint:
+        'MirrorChyan は中国本土向けの有料高速ダウンロードミラーを提供するサードパーティ製配布プラットフォームです。これは任意のサービスであり、CDK を未入力でも通常の利用や更新に影響はありません。',
       mirrorChanSdkDialogTitle: 'MirrorChyan CDK を入力',
       mirrorChanSdkDialogDesc:
         'MirrorChyan は独立したサードパーティ配布プラットフォームで、有料の高速ダウンロードを提供します。MirrorChyan の CDK があればここに入力できます。',
