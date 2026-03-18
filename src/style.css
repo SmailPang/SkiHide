@@ -1496,6 +1496,20 @@ main {
   gap: 12px;
 }
 
+.settings-row-stack {
+  align-items: flex-start;
+}
+
+.settings-inline-error {
+  margin: -4px 0 0 36px;
+  color: #d24e4e;
+  font-family: "HarmonyOS Sans SC", "Microsoft YaHei UI", "Segoe UI", sans-serif;
+  font-size: calc(12px * var(--font-scale));
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: left;
+}
+
 .settings-label {
   color: #111111;
   font-family: "HarmonyOS Sans SC", "Microsoft YaHei UI", "Segoe UI", sans-serif;
@@ -1568,6 +1582,10 @@ main {
 
 .theme-dark .settings-label {
   color: #f3f3f3;
+}
+
+.theme-dark .settings-inline-error {
+  color: #ff8b8b;
 }
 
 .theme-dark .settings-hint-icon {

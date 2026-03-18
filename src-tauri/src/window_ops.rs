@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, mem::size_of, path::PathBuf, thread, time::Duration};
 
 use windows::{
     core::PWSTR,
@@ -8,9 +8,17 @@ use windows::{
             OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
             PROCESS_QUERY_LIMITED_INFORMATION,
         },
+        UI::Input::KeyboardAndMouse::{
+            SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VIRTUAL_KEY,
+            VK_BACK, VK_CONTROL, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE, VK_F1, VK_F2, VK_F3,
+            VK_F4, VK_F5, VK_F6, VK_F7, VK_F8, VK_F9, VK_F10, VK_F11, VK_F12, VK_F13, VK_F14,
+            VK_F15, VK_F16, VK_F17, VK_F18, VK_F19, VK_F20, VK_F21, VK_F22, VK_F23, VK_F24,
+            VK_HOME, VK_INSERT, VK_LEFT, VK_MENU, VK_NEXT, VK_PRIOR, VK_RETURN, VK_RIGHT,
+            VK_SHIFT, VK_SPACE, VK_TAB, VK_UP, VK_LWIN,
+        },
         UI::WindowsAndMessaging::{
             EnumWindows, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
-            IsWindow, IsWindowVisible, ShowWindow, SW_HIDE, SW_SHOW,
+            IsWindow, IsWindowVisible, SetForegroundWindow, ShowWindow, SW_HIDE, SW_SHOW,
         },
     },
 };
@@ -76,6 +84,32 @@ pub fn hide_window(hwnd_value: u64) -> Result<(), String> {
     Ok(())
 }
 
+pub fn simulate_hotkey(hwnd_value: u64, hotkey: &str) -> Result<(), String> {
+    let hwnd = to_hwnd(hwnd_value)?;
+
+    unsafe {
+        if !IsWindow(Some(hwnd)).as_bool() {
+            return Err(format!("window {hwnd_value} is not valid"));
+        }
+
+        let _ = SetForegroundWindow(hwnd);
+    }
+
+    thread::sleep(Duration::from_millis(20));
+
+    let sequence = parse_hotkey_sequence(hotkey)?;
+    if sequence.is_empty() {
+        return Err("pause hotkey is empty".to_string());
+    }
+
+    let sent = unsafe { SendInput(&sequence, size_of::<INPUT>() as i32) } as usize;
+    if sent != sequence.len() {
+        return Err(format!("failed to send complete input sequence: {sent}/{}", sequence.len()));
+    }
+
+    Ok(())
+}
+
 pub fn show_window(hwnd_value: u64) -> Result<(), String> {
     let hwnd = to_hwnd(hwnd_value)?;
 
@@ -89,6 +123,130 @@ pub fn show_window(hwnd_value: u64) -> Result<(), String> {
 fn to_hwnd(hwnd_value: u64) -> Result<HWND, String> {
     let raw = usize::try_from(hwnd_value).map_err(|_| "hwnd out of range".to_string())?;
     Ok(HWND(raw as *mut std::ffi::c_void))
+}
+
+fn parse_hotkey_sequence(hotkey: &str) -> Result<Vec<INPUT>, String> {
+    let parts: Vec<&str> = hotkey
+        .split('+')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect();
+
+    if parts.is_empty() {
+        return Err("pause hotkey is empty".to_string());
+    }
+
+    let mut modifiers = Vec::new();
+    let mut main_key = None;
+
+    for part in parts {
+        let vk = parse_virtual_key(part)?;
+        if is_modifier_key(vk) {
+            modifiers.push(vk);
+        } else if main_key.is_some() {
+            return Err(format!("pause hotkey supports only one main key: {hotkey}"));
+        } else {
+            main_key = Some(vk);
+        }
+    }
+
+    let main_key = main_key.or_else(|| modifiers.pop()).ok_or_else(|| {
+        format!("pause hotkey is invalid: {hotkey}")
+    })?;
+
+    let mut inputs = Vec::with_capacity(modifiers.len() * 2 + 2);
+    for modifier in &modifiers {
+        inputs.push(key_input(*modifier, false));
+    }
+    inputs.push(key_input(main_key, false));
+    inputs.push(key_input(main_key, true));
+    for modifier in modifiers.into_iter().rev() {
+        inputs.push(key_input(modifier, true));
+    }
+
+    Ok(inputs)
+}
+
+fn key_input(virtual_key: VIRTUAL_KEY, key_up: bool) -> INPUT {
+    INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: virtual_key,
+                wScan: 0,
+                dwFlags: if key_up { KEYEVENTF_KEYUP } else { Default::default() },
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    }
+}
+
+fn is_modifier_key(virtual_key: VIRTUAL_KEY) -> bool {
+    virtual_key == VK_CONTROL
+        || virtual_key == VK_MENU
+        || virtual_key == VK_SHIFT
+        || virtual_key == VK_LWIN
+}
+
+fn parse_virtual_key(key: &str) -> Result<VIRTUAL_KEY, String> {
+    let normalized = key.trim().to_ascii_uppercase();
+
+    let virtual_key = match normalized.as_str() {
+        "CTRL" | "CONTROL" => VK_CONTROL,
+        "ALT" => VK_MENU,
+        "SHIFT" => VK_SHIFT,
+        "WIN" | "META" => VK_LWIN,
+        "ENTER" | "RETURN" => VK_RETURN,
+        "SPACE" => VK_SPACE,
+        "TAB" => VK_TAB,
+        "ESC" | "ESCAPE" => VK_ESCAPE,
+        "BACKSPACE" => VK_BACK,
+        "INSERT" => VK_INSERT,
+        "DELETE" | "DEL" => VK_DELETE,
+        "HOME" => VK_HOME,
+        "END" => VK_END,
+        "PAGEUP" | "PGUP" => VK_PRIOR,
+        "PAGEDOWN" | "PGDN" => VK_NEXT,
+        "LEFT" => VK_LEFT,
+        "RIGHT" => VK_RIGHT,
+        "UP" => VK_UP,
+        "DOWN" => VK_DOWN,
+        "F1" => VK_F1,
+        "F2" => VK_F2,
+        "F3" => VK_F3,
+        "F4" => VK_F4,
+        "F5" => VK_F5,
+        "F6" => VK_F6,
+        "F7" => VK_F7,
+        "F8" => VK_F8,
+        "F9" => VK_F9,
+        "F10" => VK_F10,
+        "F11" => VK_F11,
+        "F12" => VK_F12,
+        "F13" => VK_F13,
+        "F14" => VK_F14,
+        "F15" => VK_F15,
+        "F16" => VK_F16,
+        "F17" => VK_F17,
+        "F18" => VK_F18,
+        "F19" => VK_F19,
+        "F20" => VK_F20,
+        "F21" => VK_F21,
+        "F22" => VK_F22,
+        "F23" => VK_F23,
+        "F24" => VK_F24,
+        _ if normalized.len() == 1 => {
+            let ch = normalized.chars().next().unwrap_or_default();
+            match ch {
+                'A'..='Z' | '0'..='9' => VIRTUAL_KEY(ch as u16),
+                _ => return Err(format!("unsupported pause hotkey key: {key}")),
+            }
+        }
+        _ => return Err(format!("unsupported pause hotkey key: {key}")),
+    };
+
+    Ok(virtual_key)
 }
 
 unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> windows::core::BOOL {

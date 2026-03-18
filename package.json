@@ -1,7 +1,7 @@
 {
   "name": "skihide-tauri",
   "private": true,
-  "version": "2.0.1-Alpha1",
+  "version": "2.0.1-Alpha2",
   "type": "module",
   "scripts": {
     "clean": "node -e \"const fs=require('fs'); const path=require('path'); const targets=['dist','.pnpm-store','src-tauri/target','src-tauri/run.out','src-tauri/run.err']; for (const t of targets){ const p=path.resolve(t); if (fs.existsSync(p)){ fs.rmSync(p,{recursive:true,force:true}); console.log('removed',t); } }\"",

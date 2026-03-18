@@ -61,6 +61,10 @@ const silentStart = ref(false);
 const savedSilentStart = ref(false);
 const muteOnHide = ref(false);
 const savedMuteOnHide = ref(false);
+const pauseOnHide = ref(false);
+const savedPauseOnHide = ref(false);
+const pauseHotkey = ref('');
+const savedPauseHotkey = ref('');
 const updateSource = ref<'mirror_chan' | 'skihide'>('mirror_chan');
 const savedUpdateSource = ref<'mirror_chan' | 'skihide'>('mirror_chan');
 const mirrorChanSdk = ref('');
@@ -96,7 +100,9 @@ const mirrorChanSdkError = ref('');
 const listenHotkey = ref('');
 const listenMouseSideButton = ref(false);
 const recordingHotkey = ref(false);
+const recordingPauseHotkey = ref(false);
 const listenSettingsError = ref('');
+const pauseHotkeyError = ref('');
 const prefersDark = ref(false);
 const renderedTheme = ref<'light' | 'dark'>('light');
 const currentLanguageLabel = computed(() => languageOptionLabels[language.value]);
@@ -119,6 +125,8 @@ const settingsDirty = computed(
     autoStart.value !== savedAutoStart.value ||
     silentStart.value !== savedSilentStart.value ||
     muteOnHide.value !== savedMuteOnHide.value ||
+    pauseOnHide.value !== savedPauseOnHide.value ||
+    pauseHotkey.value !== savedPauseHotkey.value ||
     updateSource.value !== savedUpdateSource.value ||
     mirrorChanSdk.value !== savedMirrorChanSdk.value ||
     downloadSource.value !== savedDownloadSource.value ||
@@ -127,6 +135,7 @@ const settingsDirty = computed(
 const silentStartDisabled = computed(() => !autoStart.value);
 const fontScale = computed(() => { switch (fontSize.value) { case 'small': return 0.92; case 'large': return 1.08; case 'xlarge': return 1.16; default: return 1; } });
 const hotkeyButtonLabel = computed(() => (recordingHotkey.value ? t('home.recordingHotkey') : listenHotkey.value || t('home.bindHotkey')));
+const pauseHotkeyButtonLabel = computed(() => (recordingPauseHotkey.value ? t('settings.recordingPauseHotkey') : pauseHotkey.value || t('settings.bindPauseHotkey')));
 const memoryCleanupIntervalInvalid = computed(() => { if (!memoryAutoCleanup.value) return false; const parsedValue = Number(memoryCleanupInterval.value); return !Number.isFinite(parsedValue) || parsedValue <= 0; });
 const appShellRef = ref<HTMLElement | null>(null);
 const themeTriggerRef = ref<HTMLElement | null>(null);
@@ -434,6 +443,11 @@ function notify(options: { title: string; content?: string; type: NoticeType }) 
 async function saveSettings() {
   try {
     if (!mirrorChanSdkConfigured.value && downloadSource.value === 'mirror_chan') downloadSource.value = 'rainyun_cdn';
+    if (pauseOnHide.value && !pauseHotkey.value.trim()) {
+      pauseHotkeyError.value = t('settings.pauseHotkeyRequired');
+      notify({ title: t('common.saveFailed'), content: pauseHotkeyError.value, type: 'warn' });
+      return;
+    }
     const normalizedSilentStart = autoStart.value ? silentStart.value : false;
     silentStart.value = normalizedSilentStart;
     await invoke<AppConfig>('update_config', {
@@ -446,6 +460,8 @@ async function saveSettings() {
         auto_start: autoStart.value,
         silent_start: normalizedSilentStart,
         mute_on_hide: muteOnHide.value,
+        pause_on_hide: pauseOnHide.value,
+        pause_hotkey: pauseHotkey.value.trim(),
         update_source: updateSource.value,
         download_source: downloadSource.value,
         mirror_chan_sdk: mirrorChanSdk.value,
@@ -459,6 +475,11 @@ async function saveSettings() {
     savedAutoStart.value = autoStart.value;
     savedSilentStart.value = normalizedSilentStart;
     savedMuteOnHide.value = muteOnHide.value;
+    savedPauseOnHide.value = pauseOnHide.value;
+    savedPauseHotkey.value = pauseHotkey.value.trim();
+    pauseHotkey.value = savedPauseHotkey.value;
+    pauseHotkeyError.value = '';
+    recordingPauseHotkey.value = false;
     savedUpdateSource.value = updateSource.value;
     savedMirrorChanSdk.value = mirrorChanSdk.value;
     savedDownloadSource.value = downloadSource.value;
@@ -482,6 +503,10 @@ function discardSettings() {
   autoStart.value = savedAutoStart.value;
   silentStart.value = savedSilentStart.value;
   muteOnHide.value = savedMuteOnHide.value;
+  pauseOnHide.value = savedPauseOnHide.value;
+  pauseHotkey.value = savedPauseHotkey.value;
+  pauseHotkeyError.value = '';
+  recordingPauseHotkey.value = false;
   updateSource.value = savedUpdateSource.value;
   mirrorChanSdk.value = savedMirrorChanSdk.value;
   mirrorChanSdkDraft.value = savedMirrorChanSdk.value;
@@ -499,6 +524,7 @@ function discardSettings() {
 }
 function toggleAutoStart() { autoStart.value = !autoStart.value; if (!autoStart.value) silentStart.value = false; }
 function toggleSilentStart() { if (!autoStart.value) return; silentStart.value = !silentStart.value; }
+function togglePauseOnHide() { pauseOnHide.value = !pauseOnHide.value; if (pauseOnHide.value) pauseHotkeyError.value = ''; }
 function handleDocumentClick(event: MouseEvent) { const target = event.target as HTMLElement | null; if (!target?.closest('.custom-select')) { languageOpen.value = false; themeOpen.value = false; fontSizeOpen.value = false; updateSourceOpen.value = false; downloadSourceOpen.value = false; } if (!target?.closest('.listen-settings-popup') && !target?.closest('.listen-settings-button') && !target?.closest('.listen-button')) closeListenSettings(); }
 function handleColorSchemeChange(event: MediaQueryListEvent) { prefersDark.value = event.matches; if (theme.value === 'system') animateThemeChange(resolveTheme('system')); }
 function animateThemeChange(nextTheme: 'light' | 'dark') { if (renderedTheme.value === nextTheme || !appShellRef.value) { renderedTheme.value = nextTheme; return; } const shellRect = appShellRef.value.getBoundingClientRect(); const triggerRect = themeTriggerRef.value?.getBoundingClientRect(); const centerX = triggerRect ? triggerRect.left - shellRect.left + triggerRect.width / 2 : shellRect.width / 2; const centerY = triggerRect ? triggerRect.top - shellRect.top + triggerRect.height / 2 : shellRect.height / 2; const radius = Math.max(Math.hypot(centerX, centerY), Math.hypot(shellRect.width - centerX, centerY), Math.hypot(centerX, shellRect.height - centerY), Math.hypot(shellRect.width - centerX, shellRect.height - centerY)); if (themeSwitchTimer !== null) window.clearTimeout(themeSwitchTimer); themeRipple.value = { visible: false, target: nextTheme, x: centerX - radius, y: centerY - radius, size: radius * 2 }; requestAnimationFrame(() => { themeRipple.value = { ...themeRipple.value, visible: true }; }); themeSwitchTimer = window.setTimeout(() => { renderedTheme.value = nextTheme; themeSwitchTimer = null; }, 170); }
@@ -587,6 +613,12 @@ async function loadConfigFromBackend() {
   const nextMuteOnHide = Boolean(config.mute_on_hide);
   muteOnHide.value = nextMuteOnHide;
   savedMuteOnHide.value = nextMuteOnHide;
+  const nextPauseOnHide = Boolean(config.pause_on_hide);
+  pauseOnHide.value = nextPauseOnHide;
+  savedPauseOnHide.value = nextPauseOnHide;
+  pauseHotkey.value = config.pause_hotkey ?? '';
+  savedPauseHotkey.value = pauseHotkey.value;
+  pauseHotkeyError.value = '';
 
   const nextUpdateSource = updateSourceOptionValues.includes(config.update_source as 'mirror_chan' | 'skihide') ? (config.update_source as 'mirror_chan' | 'skihide') : 'mirror_chan';
   updateSource.value = nextUpdateSource;
@@ -816,6 +848,7 @@ function closeListenSettings() {
 }
 function toggleHotkeyRecording() {
   const nextRecording = !recordingHotkey.value;
+  if (nextRecording) recordingPauseHotkey.value = false;
   recordingHotkey.value = nextRecording;
   if (nextRecording) {
     listenSettingsError.value = '';
@@ -836,6 +869,19 @@ function clearHotkey() {
   listenSettingsError.value = '';
   void syncHotkeyWhileListening();
 }
+function togglePauseHotkeyRecording() {
+  const nextRecording = !recordingPauseHotkey.value;
+  if (nextRecording) {
+    recordingHotkey.value = false;
+    pauseHotkeyError.value = '';
+  }
+  recordingPauseHotkey.value = nextRecording;
+}
+function clearPauseHotkey() {
+  pauseHotkey.value = '';
+  recordingPauseHotkey.value = false;
+  pauseHotkeyError.value = '';
+}
 function toggleMouseSideButton() {
   const nextValue = !listenMouseSideButton.value;
   if (isListening.value && !nextValue && listenHotkey.value.trim().length === 0) {
@@ -848,13 +894,39 @@ function toggleMouseSideButton() {
   void syncHotkeyWhileListening();
 }
 function formatHotkeyFromEvent(event: KeyboardEvent): string { const parts: string[] = []; let modifierCount = 0; if (event.ctrlKey) { parts.push('Ctrl'); modifierCount += 1; } if (event.altKey) { parts.push('Alt'); modifierCount += 1; } if (event.shiftKey) { parts.push('Shift'); modifierCount += 1; } if (event.metaKey) { parts.push('Win'); modifierCount += 1; } const ignored = ['Control', 'Shift', 'Alt', 'Meta']; let terminalKey = ''; if (!ignored.includes(event.key)) { terminalKey = event.key.length === 1 ? event.key.toUpperCase() : event.key; parts.push(terminalKey); } if (modifierCount === 0 || !terminalKey) return ''; return parts.join('+'); }
+function formatPauseHotkeyFromEvent(event: KeyboardEvent): string {
+  const parts: string[] = [];
+  let hasTerminalKey = false;
+  if (event.ctrlKey) parts.push('Ctrl');
+  if (event.altKey) parts.push('Alt');
+  if (event.shiftKey) parts.push('Shift');
+  if (event.metaKey) parts.push('Win');
+  const ignored = ['Control', 'Shift', 'Alt', 'Meta'];
+  if (!ignored.includes(event.key)) {
+    const terminalKey = event.key.length === 1 ? event.key.toUpperCase() : event.key;
+    parts.push(terminalKey);
+    hasTerminalKey = true;
+  }
+  return hasTerminalKey ? parts.join('+') : '';
+}
 function handleHotkeyRecord(event: KeyboardEvent) {
-  if (!recordingHotkey.value) return;
+  if (!recordingHotkey.value && !recordingPauseHotkey.value) return;
   event.preventDefault();
   event.stopPropagation();
-  if (event.key === 'Escape') {
+  if (recordingHotkey.value && event.key === 'Escape') {
     recordingHotkey.value = false;
     void syncHotkeyWhileListening();
+    return;
+  }
+  if (recordingPauseHotkey.value) {
+    const nextPauseHotkey = formatPauseHotkeyFromEvent(event);
+    if (!nextPauseHotkey) {
+      pauseHotkeyError.value = t('settings.pauseHotkeyHint');
+      return;
+    }
+    pauseHotkey.value = nextPauseHotkey;
+    recordingPauseHotkey.value = false;
+    pauseHotkeyError.value = '';
     return;
   }
   const nextHotkey = formatHotkeyFromEvent(event);
@@ -1132,7 +1204,7 @@ onBeforeUnmount(() => {
                         </button>
                       </div>
                     </div>
-                <div class="toolbox-about-version" @click.stop>V{{ appVersion || '2.0.1-Alpha1' }}</div>
+                <div class="toolbox-about-version" @click.stop>V{{ appVersion || '2.0.1-Alpha2' }}</div>
                     <button class="toolbox-action-button toolbox-about-update" type="button" @click.stop="openUpdateDialog">{{ t('toolbox.checkUpdates') }}</button>
                   </div>
                 </Transition>
@@ -1154,6 +1226,15 @@ onBeforeUnmount(() => {
             <div class="settings-row"><span class="settings-label">{{ t('settings.autoStart') }}</span><button :class="['settings-switch', { active: autoStart }]" type="button" role="switch" :aria-checked="autoStart" @click="toggleAutoStart"><span class="settings-switch-thumb" /></button></div>
             <div class="settings-row"><span class="settings-label settings-label-child">{{ t('settings.silentStart') }}</span><button :class="['settings-switch', { active: silentStart, disabled: silentStartDisabled }]" type="button" role="switch" :aria-checked="silentStart" :aria-disabled="silentStartDisabled" @click="toggleSilentStart"><span class="settings-switch-thumb" /></button></div>
             <div class="settings-row"><span class="settings-label">{{ t('settings.muteOnHide') }}</span><button :class="['settings-switch', { active: muteOnHide }]" type="button" role="switch" :aria-checked="muteOnHide" @click="muteOnHide = !muteOnHide"><span class="settings-switch-thumb" /></button></div>
+            <div class="settings-row"><span class="settings-label">{{ t('settings.pauseOnHide') }}</span><button :class="['settings-switch', { active: pauseOnHide }]" type="button" role="switch" :aria-checked="pauseOnHide" @click="togglePauseOnHide"><span class="settings-switch-thumb" /></button></div>
+            <div class="settings-row settings-row-stack">
+              <span class="settings-label settings-label-child">{{ t('settings.pauseHotkey') }}</span>
+              <div class="listen-hotkey-actions">
+                <button :class="['listen-hotkey-trigger', { recording: recordingPauseHotkey }]" type="button" @click="togglePauseHotkeyRecording">{{ pauseHotkeyButtonLabel }}</button>
+                <button v-if="pauseHotkey" class="listen-hotkey-clear" type="button" @click="clearPauseHotkey">{{ t('common.clear') }}</button>
+              </div>
+            </div>
+            <div v-if="pauseHotkeyError" class="settings-inline-error">{{ pauseHotkeyError }}</div>
             <div class="settings-section-title settings-section-title-program">{{ t('settings.updates') }}</div>
             <div class="settings-row"><span class="settings-label">{{ t('settings.autoCheckUpdates') }}</span><button :class="['settings-switch', { active: autoCheckUpdates }]" type="button" role="switch" :aria-checked="autoCheckUpdates" @click="autoCheckUpdates = !autoCheckUpdates"><span class="settings-switch-thumb" /></button></div>
             <div class="settings-row">

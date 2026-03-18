@@ -126,6 +126,12 @@ impl AppState {
         if let Some(mute_on_hide) = patch.mute_on_hide {
             config.mute_on_hide = mute_on_hide;
         }
+        if let Some(pause_on_hide) = patch.pause_on_hide {
+            config.pause_on_hide = pause_on_hide;
+        }
+        if let Some(pause_hotkey) = patch.pause_hotkey {
+            config.pause_hotkey = pause_hotkey;
+        }
 
         if let Some(update_source) = patch.update_source {
             config.update_source = update_source;
@@ -174,6 +180,19 @@ fn list_windows(state: State<'_, AppState>) -> Result<Vec<WindowInfo>, String> {
 #[tauri::command]
 fn hide_window(hwnd: u64, state: State<'_, AppState>) -> Result<(), String> {
     let snapshot = window_ops::get_window_snapshot(hwnd)?;
+    let config = state.current_config();
+
+    if config.pause_on_hide {
+        let pause_hotkey = config.pause_hotkey.trim();
+        if !pause_hotkey.is_empty() {
+            if let Err(error) = window_ops::simulate_hotkey(hwnd, pause_hotkey) {
+                state.log("ERROR", format!("pause-on-hide failed for window {hwnd}: {error}"));
+            } else {
+                thread::sleep(Duration::from_millis(90));
+            }
+        }
+    }
+
     window_ops::hide_window(hwnd)?;
 
     {
@@ -192,7 +211,6 @@ fn hide_window(hwnd: u64, state: State<'_, AppState>) -> Result<(), String> {
         ..Default::default()
     });
 
-    let config = state.current_config();
     if config.mute_on_hide {
         apply_mute_on_hide(hwnd, state.inner());
     }

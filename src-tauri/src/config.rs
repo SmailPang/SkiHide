@@ -23,6 +23,8 @@ const VALUE_FONT_SIZE: &str = "FontSize";
 const VALUE_AUTO_START: &str = "AutoStart";
 const VALUE_SILENT_START: &str = "SilentStart";
 const VALUE_MUTE_ON_HIDE: &str = "MuteOnHide";
+const VALUE_PAUSE_ON_HIDE: &str = "PauseOnHide";
+const VALUE_PAUSE_HOTKEY: &str = "PauseHotkey";
 const VALUE_UPDATE_SOURCE: &str = "UpdateSource";
 const VALUE_DOWNLOAD_SOURCE: &str = "DownloadSource";
 const VALUE_MIRROR_CHAN_SDK: &str = "MirrorChanSdk";
@@ -75,6 +77,12 @@ pub fn load_config() -> Result<AppConfig, String> {
     }
     if let Some(mute_on_hide) = read_bool_value(key.raw(), VALUE_MUTE_ON_HIDE)? {
         config.mute_on_hide = mute_on_hide;
+    }
+    if let Some(pause_on_hide) = read_bool_value(key.raw(), VALUE_PAUSE_ON_HIDE)? {
+        config.pause_on_hide = pause_on_hide;
+    }
+    if let Some(pause_hotkey) = read_string_value(key.raw(), VALUE_PAUSE_HOTKEY)? {
+        config.pause_hotkey = pause_hotkey;
     }
     if let Some(update_source) = read_string_value(key.raw(), VALUE_UPDATE_SOURCE)? {
         config.update_source = update_source;
@@ -164,6 +172,8 @@ pub fn save_config(config: &AppConfig) -> Result<(), String> {
     write_bool_value(key.raw(), VALUE_AUTO_START, config.auto_start)?;
     write_bool_value(key.raw(), VALUE_SILENT_START, config.silent_start)?;
     write_bool_value(key.raw(), VALUE_MUTE_ON_HIDE, config.mute_on_hide)?;
+    write_bool_value(key.raw(), VALUE_PAUSE_ON_HIDE, config.pause_on_hide)?;
+    write_string_value(key.raw(), VALUE_PAUSE_HOTKEY, &config.pause_hotkey)?;
     write_string_value(key.raw(), VALUE_UPDATE_SOURCE, &config.update_source)?;
     write_string_value(key.raw(), VALUE_DOWNLOAD_SOURCE, &config.download_source)?;
     write_string_value(key.raw(), VALUE_MIRROR_CHAN_SDK, &config.mirror_chan_sdk)?;

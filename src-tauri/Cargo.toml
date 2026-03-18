@@ -1,6 +1,6 @@
 [package]
 name = "skihide"
-version = "2.0.1-Alpha1"
+version = "2.0.1-Alpha2"
 description = "SkiHide rewritten with Tauri v2"
 authors = ["OpenAI"]
 edition = "2021"
@@ -36,6 +36,7 @@ windows = { version = "0.61.3", features = [
   "Win32_System_Registry",
   "Win32_System_SystemInformation",
   "Win32_System_Threading",
+  "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_Shell",
   "Win32_UI_WindowsAndMessaging"
 ] }

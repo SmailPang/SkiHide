@@ -14,6 +14,8 @@ export interface AppConfig {
   auto_start: boolean;
   silent_start: boolean;
   mute_on_hide: boolean;
+  pause_on_hide: boolean;
+  pause_hotkey: string;
   update_source: string;
   download_source: string;
   mirror_chan_sdk: string;
@@ -31,6 +33,8 @@ export interface ConfigUpdate {
   auto_start?: boolean | null;
   silent_start?: boolean | null;
   mute_on_hide?: boolean | null;
+  pause_on_hide?: boolean | null;
+  pause_hotkey?: string | null;
   update_source?: string | null;
   download_source?: string | null;
   mirror_chan_sdk?: string | null;
