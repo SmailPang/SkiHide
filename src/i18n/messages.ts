@@ -137,12 +137,6 @@ export const messages = {
       updateFinishedDesc: '当前为演示流程，实际更新安装将在后续接入。',
     },
     optionLabels: {
-      language: {
-        zh_CN: '简体中文',
-        zh_TW: '繁體中文',
-        en_US: '英文',
-        ja_JP: '日语',
-      },
       theme: {
         system: '跟随系统',
         light: '浅色',
@@ -303,12 +297,6 @@ export const messages = {
       updateFinishedDesc: '目前為示範流程，實際更新安裝將在後續接入。',
     },
     optionLabels: {
-      language: {
-        zh_CN: '簡體中文',
-        zh_TW: '繁體中文',
-        en_US: '英文',
-        ja_JP: '日文',
-      },
       theme: {
         system: '跟隨系統',
         light: '淺色',
@@ -469,12 +457,6 @@ export const messages = {
       updateFinishedDesc: 'This is currently a simulated flow. The real installer will be connected later.',
     },
     optionLabels: {
-      language: {
-        zh_CN: 'Simplified Chinese',
-        zh_TW: 'Traditional Chinese',
-        en_US: 'English',
-        ja_JP: 'Japanese',
-      },
       theme: {
         system: 'Follow System',
         light: 'Light',
@@ -635,12 +617,6 @@ export const messages = {
       updateFinishedDesc: '現在はデモフローです。実際のインストーラーは後で接続します。',
     },
     optionLabels: {
-      language: {
-        zh_CN: '簡体字中国語',
-        zh_TW: '繁体字中国語',
-        en_US: '英語',
-        ja_JP: '日本語',
-      },
       theme: {
         system: 'システムに従う',
         light: 'ライト',
