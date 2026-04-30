@@ -67,37 +67,6 @@ jobs:
         with:
           files: out/*.exe
 
-      - name: Notify SkiHide update API and validate response
-        if: ${{ github.repository_owner == 'SmailPang' }}
-        shell: pwsh
-        env:
-          SKIHIDEUPDATETOKEN: ${{ secrets.SkiHideUpdateToken }}
-        run: |
-          if (-not "$env:SKIHIDEUPDATETOKEN") {
-            throw "Missing required secret: SKIHIDEUPDATETOKEN"
-          }
-
-          $version = "${env:VERSION}"
-
-          $base = "https://update.skihide.xyz/api/build"
-          $queryVersion = [System.Uri]::EscapeDataString($version)
-          $queryToken = [System.Uri]::EscapeDataString($env:SKIHIDEUPDATETOKEN)
-          $uriBuilder = [System.UriBuilder]::new($base)
-          $uriBuilder.Query = "version=$queryVersion&pull_token=$queryToken"
-          $url = $uriBuilder.Uri.AbsoluteUri
-
-          Write-Host "Calling update API for version: $version"
-          $resp = Invoke-RestMethod -Method Get -Uri $url -TimeoutSec 60
-
-          if ($null -eq $resp) {
-            throw "Update API returned empty response"
-          }
-          if ($resp.ok -ne $true) {
-            throw "Update API validation failed: ok is not true"
-          }
-
-          Write-Host "Update API validation passed."
-
       - name: Trigger MirrorChyanUploading
         if: ${{ github.repository_owner == 'SmailPang' }}
         shell: bash
