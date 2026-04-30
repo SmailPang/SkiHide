@@ -22,6 +22,8 @@ type OptionValue =
   | 'xlarge'
   | 'mirror_chan'
   | 'skihide'
+  | 'stable'
+  | 'beta'
   | 'github'
   | 'rainyun_cdn';
 type LanguageValue = 'zh_CN' | 'zh_TW' | 'en_US' | 'ja_JP';
@@ -40,6 +42,7 @@ const languageOptionLabels: Record<LanguageValue, string> = {
 const themeOptionValues: Array<'system' | 'light' | 'dark'> = ['system', 'light', 'dark'];
 const fontSizeOptionValues: Array<'small' | 'medium' | 'large' | 'xlarge'> = ['small', 'medium', 'large', 'xlarge'];
 const updateSourceOptionValues: Array<'mirror_chan' | 'skihide'> = ['mirror_chan', 'skihide'];
+const updateChannelOptionValues: Array<'stable' | 'beta'> = ['stable', 'beta'];
 const downloadSourceOptionValues: Array<'mirror_chan' | 'github' | 'rainyun_cdn'> = ['mirror_chan', 'github', 'rainyun_cdn'];
 
 const currentPage = ref<PageKey>('home');
@@ -67,6 +70,8 @@ const pauseHotkey = ref('');
 const savedPauseHotkey = ref('');
 const updateSource = ref<'mirror_chan' | 'skihide'>('mirror_chan');
 const savedUpdateSource = ref<'mirror_chan' | 'skihide'>('mirror_chan');
+const updateChannel = ref<'stable' | 'beta'>('stable');
+const savedUpdateChannel = ref<'stable' | 'beta'>('stable');
 const mirrorChanSdk = ref('');
 const savedMirrorChanSdk = ref('');
 const downloadSource = ref<'mirror_chan' | 'github' | 'rainyun_cdn'>('rainyun_cdn');
@@ -84,6 +89,7 @@ const languageOpen = ref(false);
 const themeOpen = ref(false);
 const fontSizeOpen = ref(false);
 const updateSourceOpen = ref(false);
+const updateChannelOpen = ref(false);
 const downloadSourceOpen = ref(false);
 const mirrorChanSdkDialogOpen = ref(false);
 const updateDialogOpen = ref(false);
@@ -94,6 +100,7 @@ const languageMenuUp = ref(false);
 const themeMenuUp = ref(false);
 const fontSizeMenuUp = ref(false);
 const updateSourceMenuUp = ref(false);
+const updateChannelMenuUp = ref(false);
 const downloadSourceMenuUp = ref(false);
 const mirrorChanSdkDraft = ref('');
 const mirrorChanSdkError = ref('');
@@ -109,6 +116,7 @@ const currentLanguageLabel = computed(() => languageOptionLabels[language.value]
 const currentThemeLabel = computed(() => t(`optionLabels.theme.${theme.value}`));
 const currentFontSizeLabel = computed(() => t(`optionLabels.fontSize.${fontSize.value}`));
 const currentUpdateSourceLabel = computed(() => t(`optionLabels.updateSource.${updateSource.value}`));
+const currentUpdateChannelLabel = computed(() => t(`optionLabels.updateChannel.${updateChannel.value}`));
 const currentDownloadSourceLabel = computed(() => t(`optionLabels.downloadSource.${downloadSource.value}`));
 const availableDownloadSourceOptionValues = computed(() =>
   mirrorChanSdk.value.trim()
@@ -128,6 +136,7 @@ const settingsDirty = computed(
     pauseOnHide.value !== savedPauseOnHide.value ||
     pauseHotkey.value !== savedPauseHotkey.value ||
     updateSource.value !== savedUpdateSource.value ||
+    updateChannel.value !== savedUpdateChannel.value ||
     mirrorChanSdk.value !== savedMirrorChanSdk.value ||
     downloadSource.value !== savedDownloadSource.value ||
     autoCheckUpdates.value !== savedAutoCheckUpdates.value,
@@ -205,9 +214,11 @@ function selectLanguage(value: LanguageValue) { language.value = value; locale.v
 function toggleThemeMenu(event: MouseEvent) { const nextOpen = !themeOpen.value; themeMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, themeOptionValues.length); themeOpen.value = nextOpen; languageOpen.value = false; fontSizeOpen.value = false; updateSourceOpen.value = false; downloadSourceOpen.value = false; }
 function toggleFontSizeMenu(event: MouseEvent) { const nextOpen = !fontSizeOpen.value; fontSizeMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, fontSizeOptionValues.length); fontSizeOpen.value = nextOpen; languageOpen.value = false; themeOpen.value = false; updateSourceOpen.value = false; downloadSourceOpen.value = false; }
 function selectFontSize(value: 'small' | 'medium' | 'large' | 'xlarge') { fontSize.value = value; fontSizeOpen.value = false; }
-function toggleUpdateSourceMenu(event: MouseEvent) { const nextOpen = !updateSourceOpen.value; updateSourceMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, updateSourceOptionValues.length); updateSourceOpen.value = nextOpen; languageOpen.value = false; themeOpen.value = false; fontSizeOpen.value = false; downloadSourceOpen.value = false; }
+function toggleUpdateSourceMenu(event: MouseEvent) { const nextOpen = !updateSourceOpen.value; updateSourceMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, updateSourceOptionValues.length); updateSourceOpen.value = nextOpen; languageOpen.value = false; themeOpen.value = false; fontSizeOpen.value = false; updateChannelOpen.value = false; downloadSourceOpen.value = false; }
 function selectUpdateSource(value: 'mirror_chan' | 'skihide') { updateSource.value = value; updateSourceOpen.value = false; }
-function toggleDownloadSourceMenu(event: MouseEvent) { const nextOpen = !downloadSourceOpen.value; downloadSourceMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, availableDownloadSourceOptionValues.value.length); downloadSourceOpen.value = nextOpen; languageOpen.value = false; themeOpen.value = false; fontSizeOpen.value = false; updateSourceOpen.value = false; }
+function toggleUpdateChannelMenu(event: MouseEvent) { const nextOpen = !updateChannelOpen.value; updateChannelMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, updateChannelOptionValues.length); updateChannelOpen.value = nextOpen; languageOpen.value = false; themeOpen.value = false; fontSizeOpen.value = false; updateSourceOpen.value = false; downloadSourceOpen.value = false; }
+function selectUpdateChannel(value: 'stable' | 'beta') { updateChannel.value = value; updateChannelOpen.value = false; }
+function toggleDownloadSourceMenu(event: MouseEvent) { const nextOpen = !downloadSourceOpen.value; downloadSourceMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, availableDownloadSourceOptionValues.value.length); downloadSourceOpen.value = nextOpen; languageOpen.value = false; themeOpen.value = false; fontSizeOpen.value = false; updateSourceOpen.value = false; updateChannelOpen.value = false; }
 function selectDownloadSource(value: 'mirror_chan' | 'github' | 'rainyun_cdn') { if (value === 'mirror_chan' && !mirrorChanSdkConfigured.value) return; downloadSource.value = value; downloadSourceOpen.value = false; }
 function openMirrorChanSdkDialog() { mirrorChanSdkDraft.value = mirrorChanSdk.value; mirrorChanSdkError.value = ''; returnToUpdateAfterMirrorDialog.value = false; mirrorChanSdkDialogOpen.value = true; }
 function openMirrorChanSdkDialogFromUpdate() { updateDialogOpen.value = false; mirrorChanSdkDraft.value = mirrorChanSdk.value; mirrorChanSdkError.value = ''; returnToUpdateAfterMirrorDialog.value = true; mirrorChanSdkDialogOpen.value = true; }
@@ -463,6 +474,7 @@ async function saveSettings() {
         pause_on_hide: pauseOnHide.value,
         pause_hotkey: pauseHotkey.value.trim(),
         update_source: updateSource.value,
+        update_channel: updateChannel.value,
         download_source: downloadSource.value,
         mirror_chan_sdk: mirrorChanSdk.value,
         auto_check_updates: autoCheckUpdates.value,
@@ -481,6 +493,7 @@ async function saveSettings() {
     pauseHotkeyError.value = '';
     recordingPauseHotkey.value = false;
     savedUpdateSource.value = updateSource.value;
+    savedUpdateChannel.value = updateChannel.value;
     savedMirrorChanSdk.value = mirrorChanSdk.value;
     savedDownloadSource.value = downloadSource.value;
     savedAutoCheckUpdates.value = autoCheckUpdates.value;
@@ -489,6 +502,7 @@ async function saveSettings() {
     themeOpen.value = false;
     fontSizeOpen.value = false;
     updateSourceOpen.value = false;
+    updateChannelOpen.value = false;
     downloadSourceOpen.value = false;
     mirrorChanSdkDialogOpen.value = false;
     notify({ title: t('common.saveSuccess'), type: 'true' });
@@ -508,6 +522,7 @@ function discardSettings() {
   pauseHotkeyError.value = '';
   recordingPauseHotkey.value = false;
   updateSource.value = savedUpdateSource.value;
+  updateChannel.value = savedUpdateChannel.value;
   mirrorChanSdk.value = savedMirrorChanSdk.value;
   mirrorChanSdkDraft.value = savedMirrorChanSdk.value;
   downloadSource.value = savedDownloadSource.value;
@@ -518,6 +533,7 @@ function discardSettings() {
   themeOpen.value = false;
   fontSizeOpen.value = false;
   updateSourceOpen.value = false;
+  updateChannelOpen.value = false;
   downloadSourceOpen.value = false;
   mirrorChanSdkDialogOpen.value = false;
   animateThemeChange(resolveTheme(savedTheme.value));
@@ -525,7 +541,7 @@ function discardSettings() {
 function toggleAutoStart() { autoStart.value = !autoStart.value; if (!autoStart.value) silentStart.value = false; }
 function toggleSilentStart() { if (!autoStart.value) return; silentStart.value = !silentStart.value; }
 function togglePauseOnHide() { pauseOnHide.value = !pauseOnHide.value; if (pauseOnHide.value) pauseHotkeyError.value = ''; }
-function handleDocumentClick(event: MouseEvent) { const target = event.target as HTMLElement | null; if (!target?.closest('.custom-select')) { languageOpen.value = false; themeOpen.value = false; fontSizeOpen.value = false; updateSourceOpen.value = false; downloadSourceOpen.value = false; } if (!target?.closest('.listen-settings-popup') && !target?.closest('.listen-settings-button') && !target?.closest('.listen-button')) closeListenSettings(); }
+function handleDocumentClick(event: MouseEvent) { const target = event.target as HTMLElement | null; if (!target?.closest('.custom-select')) { languageOpen.value = false; themeOpen.value = false; fontSizeOpen.value = false; updateSourceOpen.value = false; updateChannelOpen.value = false; downloadSourceOpen.value = false; } if (!target?.closest('.listen-settings-popup') && !target?.closest('.listen-settings-button') && !target?.closest('.listen-button')) closeListenSettings(); }
 function handleColorSchemeChange(event: MediaQueryListEvent) { prefersDark.value = event.matches; if (theme.value === 'system') animateThemeChange(resolveTheme('system')); }
 function animateThemeChange(nextTheme: 'light' | 'dark') { if (renderedTheme.value === nextTheme || !appShellRef.value) { renderedTheme.value = nextTheme; return; } const shellRect = appShellRef.value.getBoundingClientRect(); const triggerRect = themeTriggerRef.value?.getBoundingClientRect(); const centerX = triggerRect ? triggerRect.left - shellRect.left + triggerRect.width / 2 : shellRect.width / 2; const centerY = triggerRect ? triggerRect.top - shellRect.top + triggerRect.height / 2 : shellRect.height / 2; const radius = Math.max(Math.hypot(centerX, centerY), Math.hypot(shellRect.width - centerX, centerY), Math.hypot(centerX, shellRect.height - centerY), Math.hypot(shellRect.width - centerX, shellRect.height - centerY)); if (themeSwitchTimer !== null) window.clearTimeout(themeSwitchTimer); themeRipple.value = { visible: false, target: nextTheme, x: centerX - radius, y: centerY - radius, size: radius * 2 }; requestAnimationFrame(() => { themeRipple.value = { ...themeRipple.value, visible: true }; }); themeSwitchTimer = window.setTimeout(() => { renderedTheme.value = nextTheme; themeSwitchTimer = null; }, 170); }
 function handleThemeRippleEnd() { themeRipple.value = { ...themeRipple.value, visible: false }; }
@@ -623,6 +639,10 @@ async function loadConfigFromBackend() {
   const nextUpdateSource = updateSourceOptionValues.includes(config.update_source as 'mirror_chan' | 'skihide') ? (config.update_source as 'mirror_chan' | 'skihide') : 'mirror_chan';
   updateSource.value = nextUpdateSource;
   savedUpdateSource.value = nextUpdateSource;
+
+  const nextUpdateChannel = updateChannelOptionValues.includes(config.update_channel as 'stable' | 'beta') ? (config.update_channel as 'stable' | 'beta') : 'stable';
+  updateChannel.value = nextUpdateChannel;
+  savedUpdateChannel.value = nextUpdateChannel;
 
   mirrorChanSdk.value = config.mirror_chan_sdk ?? '';
   savedMirrorChanSdk.value = mirrorChanSdk.value;
@@ -1250,6 +1270,17 @@ onBeforeUnmount(() => {
                 <Transition name="dropdown-fade">
                   <div v-if="updateSourceOpen" :class="['custom-select-menu', { upward: updateSourceMenuUp }]">
                     <button v-for="option in updateSourceOptionValues" :key="option" :class="['custom-select-option', { active: option === updateSource }]" type="button" @click.stop="selectUpdateSource(option)">{{ optionLabel('optionLabels.updateSource', option) }}</button>
+                  </div>
+                </Transition>
+              </div>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">{{ t('settings.updateChannel') }}</span>
+              <div class="custom-select">
+                <button :class="['custom-select-trigger', { open: updateChannelOpen }]" type="button" @click.stop="toggleUpdateChannelMenu"><span>{{ currentUpdateChannelLabel }}</span></button>
+                <Transition name="dropdown-fade">
+                  <div v-if="updateChannelOpen" :class="['custom-select-menu', { upward: updateChannelMenuUp }]">
+                    <button v-for="option in updateChannelOptionValues" :key="option" :class="['custom-select-option', { active: option === updateChannel }]" type="button" @click.stop="selectUpdateChannel(option)">{{ optionLabel('optionLabels.updateChannel', option) }}</button>
                   </div>
                 </Transition>
               </div>

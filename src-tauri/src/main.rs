@@ -137,6 +137,10 @@ impl AppState {
             config.update_source = update_source;
         }
 
+        if let Some(update_channel) = patch.update_channel {
+            config.update_channel = update_channel;
+        }
+
         if let Some(download_source) = patch.download_source {
             config.download_source = download_source;
         }
@@ -447,14 +451,23 @@ async fn download_update_package(
 async fn resolve_mirror_download_url(state: State<'_, AppState>) -> Result<MirrorDownloadInfo, String> {
     let config = state.current_config();
     let current_version = state.app.package_info().version.to_string();
-    let result = update_ops::resolve_mirror_download_with_cdk(&current_version, &config.mirror_chan_sdk).await?;
+    let channel = match config.update_channel.as_str() {
+        "beta" => "alpha",
+        _ => "stable",
+    };
+    let result = update_ops::resolve_mirror_download_with_cdk(&current_version, &config.mirror_chan_sdk, channel).await?;
     Ok(result)
 }
 
 #[tauri::command]
 async fn validate_mirror_cdk(cdk: String, state: State<'_, AppState>) -> Result<MirrorCdkValidationInfo, String> {
+    let config = state.current_config();
     let current_version = state.app.package_info().version.to_string();
-    let result = update_ops::validate_mirror_cdk(&current_version, &cdk).await?;
+    let channel = match config.update_channel.as_str() {
+        "beta" => "alpha",
+        _ => "stable",
+    };
+    let result = update_ops::validate_mirror_cdk(&current_version, &cdk, channel).await?;
     if let Some(code) = result.mirror_code {
         state.log("INFO", format!("mirror cdk validation failed with code={code}"));
     } else {

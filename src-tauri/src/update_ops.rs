@@ -54,9 +54,14 @@ pub async fn check_for_updates(
     let normalized_current = normalize_version(current_version)?;
 
     if config.update_source == "mirror_chan" {
+        let channel = match config.update_channel.as_str() {
+            "beta" => "alpha",
+            _ => "stable",
+        };
         let query: Vec<(&str, String)> = vec![
             ("current_version", current_version.to_string()),
             ("user_agent", "skihide-client".to_string()),
+            ("channel", channel.to_string()),
         ];
         let mirror_resp = client
             .get(MIRROR_ENDPOINT)
@@ -152,6 +157,7 @@ pub async fn check_for_updates(
 pub async fn resolve_mirror_download_with_cdk(
     current_version: &str,
     cdk: &str,
+    channel: &str,
 ) -> Result<MirrorDownloadInfo, String> {
     let cdk = cdk.trim();
     if cdk.is_empty() {
@@ -168,6 +174,7 @@ pub async fn resolve_mirror_download_with_cdk(
         ("current_version", current_version.to_string()),
         ("user_agent", "skihide-client".to_string()),
         ("cdk", cdk.to_string()),
+        ("channel", channel.to_string()),
     ];
 
     let mirror_resp = client
@@ -211,6 +218,7 @@ pub async fn resolve_mirror_download_with_cdk(
 pub async fn validate_mirror_cdk(
     current_version: &str,
     cdk: &str,
+    channel: &str,
 ) -> Result<MirrorCdkValidationInfo, String> {
     let cdk = cdk.trim();
     if cdk.is_empty() {
@@ -226,6 +234,7 @@ pub async fn validate_mirror_cdk(
         ("current_version", current_version.to_string()),
         ("user_agent", "skihide-client".to_string()),
         ("cdk", cdk.to_string()),
+        ("channel", channel.to_string()),
     ];
 
     let mirror_resp = client

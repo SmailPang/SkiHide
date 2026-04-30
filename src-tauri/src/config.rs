@@ -26,6 +26,7 @@ const VALUE_MUTE_ON_HIDE: &str = "MuteOnHide";
 const VALUE_PAUSE_ON_HIDE: &str = "PauseOnHide";
 const VALUE_PAUSE_HOTKEY: &str = "PauseHotkey";
 const VALUE_UPDATE_SOURCE: &str = "UpdateSource";
+const VALUE_UPDATE_CHANNEL: &str = "UpdateChannel";
 const VALUE_DOWNLOAD_SOURCE: &str = "DownloadSource";
 const VALUE_MIRROR_CHAN_SDK: &str = "MirrorChanSdk";
 const VALUE_AUTO_CHECK_UPDATES: &str = "AutoCheckUpdates";
@@ -86,6 +87,9 @@ pub fn load_config() -> Result<AppConfig, String> {
     }
     if let Some(update_source) = read_string_value(key.raw(), VALUE_UPDATE_SOURCE)? {
         config.update_source = update_source;
+    }
+    if let Some(update_channel) = read_string_value(key.raw(), VALUE_UPDATE_CHANNEL)? {
+        config.update_channel = update_channel;
     }
     if let Some(download_source) = read_string_value(key.raw(), VALUE_DOWNLOAD_SOURCE)? {
         config.download_source = download_source;
@@ -175,6 +179,7 @@ pub fn save_config(config: &AppConfig) -> Result<(), String> {
     write_bool_value(key.raw(), VALUE_PAUSE_ON_HIDE, config.pause_on_hide)?;
     write_string_value(key.raw(), VALUE_PAUSE_HOTKEY, &config.pause_hotkey)?;
     write_string_value(key.raw(), VALUE_UPDATE_SOURCE, &config.update_source)?;
+    write_string_value(key.raw(), VALUE_UPDATE_CHANNEL, &config.update_channel)?;
     write_string_value(key.raw(), VALUE_DOWNLOAD_SOURCE, &config.download_source)?;
     write_string_value(key.raw(), VALUE_MIRROR_CHAN_SDK, &config.mirror_chan_sdk)?;
     write_bool_value(

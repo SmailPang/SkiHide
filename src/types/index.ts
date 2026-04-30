@@ -17,6 +17,7 @@ export interface AppConfig {
   pause_on_hide: boolean;
   pause_hotkey: string;
   update_source: string;
+  update_channel: string;
   download_source: string;
   mirror_chan_sdk: string;
   auto_check_updates: boolean;
@@ -36,6 +37,7 @@ export interface ConfigUpdate {
   pause_on_hide?: boolean | null;
   pause_hotkey?: string | null;
   update_source?: string | null;
+  update_channel?: string | null;
   download_source?: string | null;
   mirror_chan_sdk?: string | null;
   auto_check_updates?: boolean | null;

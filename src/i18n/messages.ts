@@ -110,6 +110,7 @@ export const messages = {
       pauseHotkeyRequired: '开启隐藏时暂停后，必须设置暂停快捷键。',
       autoCheckUpdates: '自动检查更新',
       updateSource: '更新源',
+      updateChannel: '更新通道',
       mirrorChanSdk: 'Mirror酱 CDK',
       mirrorChanSdkHint:
         'Mirror 酱 是一个付费的第三方应用分发平台，用于提供国内有偿高速下载源。这是一项可选服务，不填入CDK不影响正常使用与更新。',
@@ -145,6 +146,10 @@ export const messages = {
       updateSource: {
         mirror_chan: 'Mirror酱',
         skihide: 'SkiHide',
+      },
+      updateChannel: {
+        stable: '稳定通道',
+        beta: '测试通道',
       },
       downloadSource: {
         mirror_chan: 'Mirror酱',
@@ -270,6 +275,7 @@ export const messages = {
       pauseHotkeyRequired: '開啟隱藏時暫停後，必須設定暫停快捷鍵。',
       autoCheckUpdates: '自動檢查更新',
       updateSource: '更新源',
+      updateChannel: '更新通道',
       mirrorChanSdk: 'Mirror酱 CDK',
       mirrorChanSdkHint:
         'Mirror 酱 是一個付費的第三方應用分發平台，用於提供國內有償高速下載源。這是一項可選服務，不填入CDK不影響正常使用與更新。',
@@ -305,6 +311,10 @@ export const messages = {
       updateSource: {
         mirror_chan: 'Mirror酱',
         skihide: 'SkiHide',
+      },
+      updateChannel: {
+        stable: '穩定通道',
+        beta: '測試通道',
       },
       downloadSource: {
         mirror_chan: 'Mirror酱',
@@ -430,6 +440,7 @@ export const messages = {
       pauseHotkeyRequired: 'A pause hotkey is required when pause before hide is enabled.',
       autoCheckUpdates: 'Auto Check Updates',
       updateSource: 'Update Source',
+      updateChannel: 'Update Channel',
       mirrorChanSdk: 'MirrorChyan CDK',
       mirrorChanSdkHint:
         'MirrorChyan is a paid third-party app distribution platform that provides accelerated download mirrors in mainland China. This service is optional and leaving CDK empty will not affect normal use or updates.',
@@ -465,6 +476,10 @@ export const messages = {
       updateSource: {
         mirror_chan: 'MirrorChyan',
         skihide: 'SkiHide',
+      },
+      updateChannel: {
+        stable: 'Stable',
+        beta: 'Beta',
       },
       downloadSource: {
         mirror_chan: 'MirrorChyan',
@@ -590,6 +605,7 @@ export const messages = {
       pauseHotkeyRequired: '非表示前に一時停止を有効にする場合は、一時停止キーの設定が必要です。',
       autoCheckUpdates: '起動時に自動更新チェック',
       updateSource: '更新元',
+      updateChannel: '更新チャンネル',
       mirrorChanSdk: 'MirrorChyan CDK',
       mirrorChanSdkHint:
         'MirrorChyan は中国本土向けの有料高速ダウンロードミラーを提供するサードパーティ製配布プラットフォームです。これは任意のサービスであり、CDK を未入力でも通常の利用や更新に影響はありません。',
@@ -625,6 +641,10 @@ export const messages = {
       updateSource: {
         mirror_chan: 'MirrorChyan',
         skihide: 'SkiHide',
+      },
+      updateChannel: {
+        stable: '安定版',
+        beta: 'ベータ版',
       },
       downloadSource: {
         mirror_chan: 'MirrorChyan',
