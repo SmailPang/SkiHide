@@ -55,7 +55,7 @@ pub async fn check_for_updates(
 
     if config.update_source == "mirror_chan" {
         let channel = match config.update_channel.as_str() {
-            "beta" => "alpha",
+            "beta" => "beta",
             _ => "stable",
         };
         let query: Vec<(&str, String)> = vec![

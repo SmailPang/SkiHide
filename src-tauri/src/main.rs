@@ -452,7 +452,7 @@ async fn resolve_mirror_download_url(state: State<'_, AppState>) -> Result<Mirro
     let config = state.current_config();
     let current_version = state.app.package_info().version.to_string();
     let channel = match config.update_channel.as_str() {
-        "beta" => "alpha",
+        "beta" => "beta",
         _ => "stable",
     };
     let result = update_ops::resolve_mirror_download_with_cdk(&current_version, &config.mirror_chan_sdk, channel).await?;
@@ -464,7 +464,7 @@ async fn validate_mirror_cdk(cdk: String, state: State<'_, AppState>) -> Result<
     let config = state.current_config();
     let current_version = state.app.package_info().version.to_string();
     let channel = match config.update_channel.as_str() {
-        "beta" => "alpha",
+        "beta" => "beta",
         _ => "stable",
     };
     let result = update_ops::validate_mirror_cdk(&current_version, &cdk, channel).await?;
