@@ -677,6 +677,9 @@ async function loadConfigFromBackend() {
   savedMirrorChanSdk.value = mirrorChanSdk.value;
   mirrorChanSdkDraft.value = mirrorChanSdk.value;
 
+  const nextDownloadSource = downloadSourceOptionValues.includes(config.download_source as 'mirror_chan' | 'github' | 'rainyun_cdn') ? (config.download_source as 'mirror_chan' | 'github' | 'rainyun_cdn') : 'rainyun_cdn';
+  const normalizedDownloadSource = nextDownloadSource === 'mirror_chan' && !mirrorChanSdk.value.trim() ? 'rainyun_cdn' : nextDownloadSource;
+
   // 加载配置后，检查当前设置是否与通道兼容
   if (nextUpdateChannel === 'beta') {
     // 测试通道不支持SkiHide更新源
@@ -687,12 +690,11 @@ async function loadConfigFromBackend() {
     if (normalizedDownloadSource === 'rainyun_cdn') {
       downloadSource.value = 'github';
     }
+  } else {
+    downloadSource.value = normalizedDownloadSource;
   }
 
-  const nextDownloadSource = downloadSourceOptionValues.includes(config.download_source as 'mirror_chan' | 'github' | 'rainyun_cdn') ? (config.download_source as 'mirror_chan' | 'github' | 'rainyun_cdn') : 'rainyun_cdn';
-  const normalizedDownloadSource = nextDownloadSource === 'mirror_chan' && !mirrorChanSdk.value.trim() ? 'rainyun_cdn' : nextDownloadSource;
-  downloadSource.value = normalizedDownloadSource;
-  savedDownloadSource.value = normalizedDownloadSource;
+  savedDownloadSource.value = downloadSource.value;
   autoCheckUpdates.value = config.auto_check_updates ?? true;
   savedAutoCheckUpdates.value = autoCheckUpdates.value;
   listenMouseSideButton.value = Boolean(config.mouse_side_button_listener);
