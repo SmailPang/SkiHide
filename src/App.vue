@@ -118,11 +118,27 @@ const currentFontSizeLabel = computed(() => t(`optionLabels.fontSize.${fontSize.
 const currentUpdateSourceLabel = computed(() => t(`optionLabels.updateSource.${updateSource.value}`));
 const currentUpdateChannelLabel = computed(() => t(`optionLabels.updateChannel.${updateChannel.value}`));
 const currentDownloadSourceLabel = computed(() => t(`optionLabels.downloadSource.${downloadSource.value}`));
-const availableDownloadSourceOptionValues = computed(() =>
-  mirrorChanSdk.value.trim()
-    ? downloadSourceOptionValues
-    : downloadSourceOptionValues.filter((option) => option !== 'mirror_chan'),
-);
+const availableUpdateSourceOptionValues = computed(() => {
+  if (updateChannel.value === 'beta') {
+    return updateSourceOptionValues.filter((option) => option !== 'skihide');
+  }
+  return updateSourceOptionValues;
+});
+const availableDownloadSourceOptionValues = computed(() => {
+  let options = downloadSourceOptionValues;
+
+  // 测试通道隐藏雨云CDN
+  if (updateChannel.value === 'beta') {
+    options = options.filter((option) => option !== 'rainyun_cdn');
+  }
+
+  // 没有配置Mirror酱CDK时隐藏Mirror酱选项
+  if (!mirrorChanSdk.value.trim()) {
+    options = options.filter((option) => option !== 'mirror_chan');
+  }
+
+  return options;
+});
 const mirrorChanSdkConfigured = computed(() => mirrorChanSdk.value.trim().length > 0);
 const activeTheme = computed(() => renderedTheme.value);
 const settingsDirty = computed(
@@ -214,10 +230,23 @@ function selectLanguage(value: LanguageValue) { language.value = value; locale.v
 function toggleThemeMenu(event: MouseEvent) { const nextOpen = !themeOpen.value; themeMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, themeOptionValues.length); themeOpen.value = nextOpen; languageOpen.value = false; fontSizeOpen.value = false; updateSourceOpen.value = false; downloadSourceOpen.value = false; }
 function toggleFontSizeMenu(event: MouseEvent) { const nextOpen = !fontSizeOpen.value; fontSizeMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, fontSizeOptionValues.length); fontSizeOpen.value = nextOpen; languageOpen.value = false; themeOpen.value = false; updateSourceOpen.value = false; downloadSourceOpen.value = false; }
 function selectFontSize(value: 'small' | 'medium' | 'large' | 'xlarge') { fontSize.value = value; fontSizeOpen.value = false; }
-function toggleUpdateSourceMenu(event: MouseEvent) { const nextOpen = !updateSourceOpen.value; updateSourceMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, updateSourceOptionValues.length); updateSourceOpen.value = nextOpen; languageOpen.value = false; themeOpen.value = false; fontSizeOpen.value = false; updateChannelOpen.value = false; downloadSourceOpen.value = false; }
+function toggleUpdateSourceMenu(event: MouseEvent) { const nextOpen = !updateSourceOpen.value; updateSourceMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, availableUpdateSourceOptionValues.value.length); updateSourceOpen.value = nextOpen; languageOpen.value = false; themeOpen.value = false; fontSizeOpen.value = false; updateChannelOpen.value = false; downloadSourceOpen.value = false; }
 function selectUpdateSource(value: 'mirror_chan' | 'skihide') { updateSource.value = value; updateSourceOpen.value = false; }
 function toggleUpdateChannelMenu(event: MouseEvent) { const nextOpen = !updateChannelOpen.value; updateChannelMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, updateChannelOptionValues.length); updateChannelOpen.value = nextOpen; languageOpen.value = false; themeOpen.value = false; fontSizeOpen.value = false; updateSourceOpen.value = false; downloadSourceOpen.value = false; }
-function selectUpdateChannel(value: 'stable' | 'beta') { updateChannel.value = value; updateChannelOpen.value = false; }
+function selectUpdateChannel(value: 'stable' | 'beta') {
+  updateChannel.value = value;
+  updateChannelOpen.value = false;
+
+  // 切换到测试通道时，如果当前更新源是SkiHide，自动切换到Mirror酱
+  if (value === 'beta' && updateSource.value === 'skihide') {
+    updateSource.value = 'mirror_chan';
+  }
+
+  // 切换到测试通道时，如果当前下载源是雨云CDN，自动切换到GitHub
+  if (value === 'beta' && downloadSource.value === 'rainyun_cdn') {
+    downloadSource.value = 'github';
+  }
+}
 function toggleDownloadSourceMenu(event: MouseEvent) { const nextOpen = !downloadSourceOpen.value; downloadSourceMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, availableDownloadSourceOptionValues.value.length); downloadSourceOpen.value = nextOpen; languageOpen.value = false; themeOpen.value = false; fontSizeOpen.value = false; updateSourceOpen.value = false; updateChannelOpen.value = false; }
 function selectDownloadSource(value: 'mirror_chan' | 'github' | 'rainyun_cdn') { if (value === 'mirror_chan' && !mirrorChanSdkConfigured.value) return; downloadSource.value = value; downloadSourceOpen.value = false; }
 function openMirrorChanSdkDialog() { mirrorChanSdkDraft.value = mirrorChanSdk.value; mirrorChanSdkError.value = ''; returnToUpdateAfterMirrorDialog.value = false; mirrorChanSdkDialogOpen.value = true; }
@@ -647,6 +676,18 @@ async function loadConfigFromBackend() {
   mirrorChanSdk.value = config.mirror_chan_sdk ?? '';
   savedMirrorChanSdk.value = mirrorChanSdk.value;
   mirrorChanSdkDraft.value = mirrorChanSdk.value;
+
+  // 加载配置后，检查当前设置是否与通道兼容
+  if (nextUpdateChannel === 'beta') {
+    // 测试通道不支持SkiHide更新源
+    if (nextUpdateSource === 'skihide') {
+      updateSource.value = 'mirror_chan';
+    }
+    // 测试通道不支持雨云CDN下载源
+    if (normalizedDownloadSource === 'rainyun_cdn') {
+      downloadSource.value = 'github';
+    }
+  }
 
   const nextDownloadSource = downloadSourceOptionValues.includes(config.download_source as 'mirror_chan' | 'github' | 'rainyun_cdn') ? (config.download_source as 'mirror_chan' | 'github' | 'rainyun_cdn') : 'rainyun_cdn';
   const normalizedDownloadSource = nextDownloadSource === 'mirror_chan' && !mirrorChanSdk.value.trim() ? 'rainyun_cdn' : nextDownloadSource;
@@ -1269,7 +1310,7 @@ onBeforeUnmount(() => {
                 <button :class="['custom-select-trigger', { open: updateSourceOpen }]" type="button" @click.stop="toggleUpdateSourceMenu"><span>{{ currentUpdateSourceLabel }}</span></button>
                 <Transition name="dropdown-fade">
                   <div v-if="updateSourceOpen" :class="['custom-select-menu', { upward: updateSourceMenuUp }]">
-                    <button v-for="option in updateSourceOptionValues" :key="option" :class="['custom-select-option', { active: option === updateSource }]" type="button" @click.stop="selectUpdateSource(option)">{{ optionLabel('optionLabels.updateSource', option) }}</button>
+                    <button v-for="option in availableUpdateSourceOptionValues" :key="option" :class="['custom-select-option', { active: option === updateSource }]" type="button" @click.stop="selectUpdateSource(option)">{{ optionLabel('optionLabels.updateSource', option) }}</button>
                   </div>
                 </Transition>
               </div>
