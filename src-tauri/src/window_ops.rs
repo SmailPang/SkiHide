@@ -17,7 +17,7 @@ use windows::{
             VK_SHIFT, VK_SPACE, VK_TAB, VK_UP, VK_LWIN,
         },
         UI::WindowsAndMessaging::{
-            EnumWindows, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
+            EnumWindows, GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
             IsWindow, IsWindowVisible, SetForegroundWindow, ShowWindow, SW_HIDE, SW_SHOW,
         },
     },
@@ -29,8 +29,27 @@ struct EnumContext {
     windows: Vec<WindowInfo>,
 }
 
+pub fn get_foreground_window_info() -> Result<WindowInfo, String> {
+    let hwnd = unsafe { GetForegroundWindow() };
+
+    if hwnd.0.is_null() {
+        return Err("no foreground window".to_string());
+    }
+
+    let hwnd_value = hwnd.0 as usize as u64;
+    get_window_snapshot(hwnd_value)
+}
+
 pub fn list_windows(hidden_windows: &HashMap<u64, WindowInfo>) -> Vec<WindowInfo> {
     let mut context = EnumContext { windows: Vec::new() };
+
+    // 添加"当前前台窗口"作为第一个选项
+    if let Ok(foreground) = get_foreground_window_info() {
+        // 检查前台窗口是否应该被过滤
+        if !should_skip_window(&foreground.title, foreground.process_name.as_deref()) {
+            context.windows.push(foreground);
+        }
+    }
 
     unsafe {
         let context_ptr = &mut context as *mut EnumContext;
@@ -45,6 +64,10 @@ pub fn list_windows(hidden_windows: &HashMap<u64, WindowInfo>) -> Vec<WindowInfo
             context.windows.push(hidden.clone());
         }
     }
+
+    // 去重（前台窗口可能也在枚举列表中）
+    let mut seen = std::collections::HashSet::new();
+    context.windows.retain(|w| seen.insert(w.hwnd));
 
     context
         .windows

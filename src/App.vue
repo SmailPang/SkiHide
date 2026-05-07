@@ -45,6 +45,8 @@ const updateSourceOptionValues: Array<'mirror_chan' | 'skihide'> = ['mirror_chan
 const updateChannelOptionValues: Array<'stable' | 'beta'> = ['stable', 'beta'];
 const downloadSourceOptionValues: Array<'mirror_chan' | 'github' | 'rainyun_cdn'> = ['mirror_chan', 'github', 'rainyun_cdn'];
 
+const FOREGROUND_WINDOW_HWND = 0; // 特殊值：0 表示"当前前台窗口"（窗口句柄不会是0）
+
 const currentPage = ref<PageKey>('home');
 const homeWindows = ref<WindowInfo[]>([]);
 const selectedHomeWindowId = ref<number | null>(null);
@@ -603,6 +605,20 @@ async function selectHomeWindow(hwnd: number) {
     notify({ title: t('home.saveSelectedWindowFailed'), content: String(error), type: 'warn' });
   }
 }
+async function selectForegroundWindow() {
+  selectedHomeWindowId.value = FOREGROUND_WINDOW_HWND;
+  try {
+    await invoke<AppConfig>('update_config', {
+      patch: {
+        hotkey: null,
+        language: null,
+        last_selected_hwnd: FOREGROUND_WINDOW_HWND,
+      },
+    });
+  } catch (error) {
+    notify({ title: t('home.saveSelectedWindowFailed'), content: String(error), type: 'warn' });
+  }
+}
 async function syncHotkeyWhileListening() {
   const hasHotkey = listenHotkey.value.trim().length > 0;
   const listenerEnabled = hasHotkey || listenMouseSideButton.value;
@@ -1121,6 +1137,10 @@ onBeforeUnmount(() => {
               <div class="window-list-panel">
                 <div class="window-list-header">{{ t('home.windowListTitle') }}</div>
                 <div class="window-list-card">
+                  <button :class="['window-list-item', 'foreground-window-item', { active: selectedHomeWindowId === FOREGROUND_WINDOW_HWND }]" type="button" @click="selectForegroundWindow">
+                    <span class="window-list-name">{{ t('home.currentForegroundWindow') }}</span>
+                    <span class="window-list-pid">{{ t('home.currentForegroundWindow') }}</span>
+                  </button>
                   <button v-for="item in homeWindows" :key="item.hwnd" :class="['window-list-item', { active: item.hwnd === selectedHomeWindowId }]" type="button" @click="selectHomeWindow(item.hwnd)">
                     <span class="window-list-name">{{ item.title }}</span>
                     <span class="window-list-pid">PID {{ item.hwnd }}</span>

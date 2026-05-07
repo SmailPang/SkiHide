@@ -27,6 +27,7 @@ export const messages = {
     home: {
       closeListenSettings: '关闭监听设置',
       windowListTitle: '进程列表',
+      currentForegroundWindow: '当前前台窗口',
       listenSettings: '监听设置',
       refresh: '刷新',
       startListening: '开始监听',
@@ -192,6 +193,7 @@ export const messages = {
     home: {
       closeListenSettings: '關閉監聽設定',
       windowListTitle: '進程列表',
+      currentForegroundWindow: '目前前台視窗',
       listenSettings: '監聽設定',
       refresh: '重新整理',
       startListening: '開始監聽',
@@ -357,6 +359,7 @@ export const messages = {
     home: {
       closeListenSettings: 'Close listener settings',
       windowListTitle: 'Process List',
+      currentForegroundWindow: 'Current Foreground Window',
       listenSettings: 'Listener Settings',
       refresh: 'Refresh',
       startListening: 'Start Listening',
@@ -522,6 +525,7 @@ export const messages = {
     home: {
       closeListenSettings: '監視設定を閉じる',
       windowListTitle: 'プロセス一覧',
+      currentForegroundWindow: '現在のフォアグラウンドウィンドウ',
       listenSettings: '監視設定',
       refresh: '更新',
       startListening: '監視開始',

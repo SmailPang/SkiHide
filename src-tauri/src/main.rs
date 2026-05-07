@@ -182,6 +182,13 @@ fn list_windows(state: State<'_, AppState>) -> Result<Vec<WindowInfo>, String> {
 }
 
 #[tauri::command]
+fn get_foreground_window(state: State<'_, AppState>) -> Result<WindowInfo, String> {
+    let window_info = window_ops::get_foreground_window_info()?;
+    state.log("INFO", format!("got foreground window: {} ({})", window_info.title, window_info.hwnd));
+    Ok(window_info)
+}
+
+#[tauri::command]
 fn hide_window(hwnd: u64, state: State<'_, AppState>) -> Result<(), String> {
     let snapshot = window_ops::get_window_snapshot(hwnd)?;
     let config = state.current_config();
@@ -584,13 +591,30 @@ pub(crate) fn handle_mouse_side_button_global(app: &AppHandle) {
 fn toggle_selected_window(app: &AppHandle, source: &str) {
     let state = app.state::<AppState>();
     let config = state.current_config();
-    let Some(hwnd) = config.last_selected_hwnd else {
+    let Some(mut hwnd) = config.last_selected_hwnd else {
         state.log(
             "ERROR",
             format!("{source} triggered, but no selected window is available"),
         );
         return;
     };
+
+    // 如果 hwnd 为 0，表示用户选择了"当前前台窗口"
+    if hwnd == 0 {
+        match window_ops::get_foreground_window_info() {
+            Ok(window_info) => {
+                hwnd = window_info.hwnd;
+                state.log(
+                    "INFO",
+                    format!("{source} using foreground window: {} ({})", window_info.title, hwnd),
+                );
+            }
+            Err(error) => {
+                state.log("ERROR", format!("{source} failed to get foreground window: {error}"));
+                return;
+            }
+        }
+    }
 
     let is_hidden = state.hidden_handles.lock().contains(&hwnd);
     let result = if is_hidden {
@@ -874,6 +898,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             list_windows,
+            get_foreground_window,
             hide_window,
             show_window,
             get_config,
