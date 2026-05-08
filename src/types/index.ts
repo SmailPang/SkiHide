@@ -23,6 +23,7 @@ export interface AppConfig {
   auto_check_updates: boolean;
   mouse_side_button_listener: boolean;
   privacy_consent: boolean;
+  auto_listen_on_startup: boolean;
 }
 
 export interface ConfigUpdate {
@@ -43,6 +44,7 @@ export interface ConfigUpdate {
   auto_check_updates?: boolean | null;
   mouse_side_button_listener?: boolean | null;
   privacy_consent?: boolean | null;
+  auto_listen_on_startup?: boolean | null;
 }
 
 export interface LogEntry {

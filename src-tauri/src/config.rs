@@ -32,6 +32,7 @@ const VALUE_MIRROR_CHAN_SDK: &str = "MirrorChanSdk";
 const VALUE_AUTO_CHECK_UPDATES: &str = "AutoCheckUpdates";
 const VALUE_MOUSE_SIDE_BUTTON_LISTENER: &str = "MouseSideButtonListener";
 const VALUE_PRIVACY_CONSENT: &str = "PrivacyConsent";
+const VALUE_AUTO_LISTEN_ON_STARTUP: &str = "AutoListenOnStartup";
 
 struct RegistryKey(HKEY);
 
@@ -107,6 +108,9 @@ pub fn load_config() -> Result<AppConfig, String> {
     }
     if let Some(privacy_consent) = read_bool_value(key.raw(), VALUE_PRIVACY_CONSENT)? {
         config.privacy_consent = privacy_consent;
+    }
+    if let Some(auto_listen_on_startup) = read_bool_value(key.raw(), VALUE_AUTO_LISTEN_ON_STARTUP)? {
+        config.auto_listen_on_startup = auto_listen_on_startup;
     }
 
     save_config(&config)?;
@@ -193,6 +197,7 @@ pub fn save_config(config: &AppConfig) -> Result<(), String> {
         config.mouse_side_button_listener,
     )?;
     write_bool_value(key.raw(), VALUE_PRIVACY_CONSENT, config.privacy_consent)?;
+    write_bool_value(key.raw(), VALUE_AUTO_LISTEN_ON_STARTUP, config.auto_listen_on_startup)?;
 
     Ok(())
 }

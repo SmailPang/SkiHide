@@ -27,6 +27,7 @@ pub struct AppConfig {
     pub auto_check_updates: bool,
     pub mouse_side_button_listener: bool,
     pub privacy_consent: bool,
+    pub auto_listen_on_startup: bool,
 }
 
 impl Default for AppConfig {
@@ -49,6 +50,7 @@ impl Default for AppConfig {
             auto_check_updates: true,
             mouse_side_button_listener: false,
             privacy_consent: false,
+            auto_listen_on_startup: false,
         }
     }
 }
@@ -72,6 +74,7 @@ pub struct ConfigUpdate {
     pub auto_check_updates: Option<bool>,
     pub mouse_side_button_listener: Option<bool>,
     pub privacy_consent: Option<bool>,
+    pub auto_listen_on_startup: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]

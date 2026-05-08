@@ -80,6 +80,8 @@ const downloadSource = ref<'mirror_chan' | 'github' | 'rainyun_cdn'>('rainyun_cd
 const savedDownloadSource = ref<'mirror_chan' | 'github' | 'rainyun_cdn'>('rainyun_cdn');
 const autoCheckUpdates = ref(true);
 const savedAutoCheckUpdates = ref(true);
+const autoListenOnStartup = ref(false);
+const savedAutoListenOnStartup = ref(false);
 const memoryAutoCleanup = ref(false);
 const memoryCleanupInterval = ref('5');
 const memoryCleanupUnit = ref<'seconds' | 'minutes' | 'hours'>('minutes');
@@ -157,7 +159,8 @@ const settingsDirty = computed(
     updateChannel.value !== savedUpdateChannel.value ||
     mirrorChanSdk.value !== savedMirrorChanSdk.value ||
     downloadSource.value !== savedDownloadSource.value ||
-    autoCheckUpdates.value !== savedAutoCheckUpdates.value,
+    autoCheckUpdates.value !== savedAutoCheckUpdates.value ||
+    autoListenOnStartup.value !== savedAutoListenOnStartup.value,
 );
 const silentStartDisabled = computed(() => !autoStart.value);
 const fontScale = computed(() => { switch (fontSize.value) { case 'small': return 0.92; case 'large': return 1.08; case 'xlarge': return 1.16; default: return 1; } });
@@ -629,6 +632,7 @@ async function syncHotkeyWhileListening() {
         language: null,
         last_selected_hwnd: selectedHomeWindowId.value,
         mouse_side_button_listener: listenMouseSideButton.value,
+        auto_listen_on_startup: autoListenOnStartup.value,
       },
     });
     if (isListening.value) {
@@ -713,6 +717,8 @@ async function loadConfigFromBackend() {
   savedDownloadSource.value = downloadSource.value;
   autoCheckUpdates.value = config.auto_check_updates ?? true;
   savedAutoCheckUpdates.value = autoCheckUpdates.value;
+  autoListenOnStartup.value = config.auto_listen_on_startup ?? false;
+  savedAutoListenOnStartup.value = autoListenOnStartup.value;
   listenMouseSideButton.value = Boolean(config.mouse_side_button_listener);
   privacyConsentAccepted.value = Boolean(config.privacy_consent);
 
@@ -972,6 +978,10 @@ function toggleMouseSideButton() {
   listenSettingsError.value = '';
   void syncHotkeyWhileListening();
 }
+function toggleAutoListenOnStartup() {
+  autoListenOnStartup.value = !autoListenOnStartup.value;
+  void syncHotkeyWhileListening();
+}
 function formatHotkeyFromEvent(event: KeyboardEvent): string { const parts: string[] = []; let modifierCount = 0; if (event.ctrlKey) { parts.push('Ctrl'); modifierCount += 1; } if (event.altKey) { parts.push('Alt'); modifierCount += 1; } if (event.shiftKey) { parts.push('Shift'); modifierCount += 1; } if (event.metaKey) { parts.push('Win'); modifierCount += 1; } const ignored = ['Control', 'Shift', 'Alt', 'Meta']; let terminalKey = ''; if (!ignored.includes(event.key)) { terminalKey = event.key.length === 1 ? event.key.toUpperCase() : event.key; parts.push(terminalKey); } if (modifierCount === 0 || !terminalKey) return ''; return parts.join('+'); }
 function formatPauseHotkeyFromEvent(event: KeyboardEvent): string {
   const parts: string[] = [];
@@ -1074,7 +1084,30 @@ onMounted(async () => {
     await loadConfigFromBackend();
     privacyDialogOpen.value = !privacyConsentAccepted.value;
     await runStartupUpdateCheck();
-    await invoke('set_hotkey_enabled', { enabled: false });
+
+    // 检查是否启用了启动时自动监听
+    if (autoListenOnStartup.value) {
+      const hasHotkey = listenHotkey.value.trim().length > 0;
+      const hasMouseListener = listenMouseSideButton.value;
+      if (hasHotkey || hasMouseListener) {
+        // 如果没有选择窗口，默认选择"当前前台窗口"
+        if (selectedHomeWindowId.value === null) {
+          selectedHomeWindowId.value = FOREGROUND_WINDOW_HWND;
+          await invoke<AppConfig>('update_config', {
+            patch: {
+              last_selected_hwnd: FOREGROUND_WINDOW_HWND,
+            },
+          });
+        }
+        isListening.value = true;
+        // 注意：不调用 set_hotkey_enabled，因为后端启动时已经启用了
+      } else {
+        await invoke('set_hotkey_enabled', { enabled: false });
+      }
+    } else {
+      await invoke('set_hotkey_enabled', { enabled: false });
+    }
+
     await refreshHomeWindows();
     scheduleMemoryCleanup();
     scheduleMemoryStatusRefresh();
@@ -1168,6 +1201,17 @@ onBeforeUnmount(() => {
                 <input :checked="listenMouseSideButton" class="listen-checkbox-input" type="checkbox" />
                 <span class="listen-checkbox-box" />
                 <span class="listen-checkbox-label">{{ t('home.mouseSideButton') }}</span>
+              </label>
+              <label class="listen-checkbox-row" @click.prevent="toggleAutoListenOnStartup">
+                <input :checked="autoListenOnStartup" class="listen-checkbox-input" type="checkbox" />
+                <span class="listen-checkbox-box" />
+                <span class="listen-checkbox-label">
+                  {{ t('home.autoListenOnStartup') }}
+                  <span class="settings-hint" tabindex="0" @click.stop>
+                    <span class="settings-hint-icon" aria-hidden="true">i</span>
+                    <span class="settings-hint-tooltip">{{ t('home.autoListenOnStartupHint') }}</span>
+                  </span>
+                </span>
               </label>
               <p v-if="listenSettingsError" class="listen-settings-error">{{ listenSettingsError }}</p>
             </div>

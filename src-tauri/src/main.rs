@@ -159,6 +159,10 @@ impl AppState {
             config.privacy_consent = privacy_consent;
         }
 
+        if let Some(auto_listen_on_startup) = patch.auto_listen_on_startup {
+            config.auto_listen_on_startup = auto_listen_on_startup;
+        }
+
         if *config == before {
             return Ok(config.clone());
         }
@@ -883,6 +887,30 @@ pub fn run() {
                     startup_ops::sync_startup_registration(cfg.auto_start, cfg.silent_start)
                 {
                     state.log("ERROR", format!("failed to sync startup registration: {error}"));
+                }
+
+                // 如果启用了启动时自动监听，则自动开始监听
+                if cfg.auto_listen_on_startup {
+                    // 如果没有选择窗口，默认选择"当前前台窗口"
+                    if cfg.last_selected_hwnd.is_none() {
+                        let _ = state.update_config(ConfigUpdate {
+                            last_selected_hwnd: Some(0),
+                            ..Default::default()
+                        });
+                    }
+
+                    // 检查是否配置了监听方式
+                    let has_hotkey = !cfg.hotkey.trim().is_empty();
+                    let has_mouse_listener = cfg.mouse_side_button_listener;
+
+                    if has_hotkey || has_mouse_listener {
+                        *state.hotkey_enabled.lock() = true;
+                        if let Err(error) = register_hotkey(&app.handle(), &cfg.hotkey, true, state.inner()) {
+                            state.log("ERROR", format!("failed to auto-enable hotkey on startup: {error}"));
+                        } else {
+                            state.log("INFO", "auto-enabled hotkey listener on startup");
+                        }
+                    }
                 }
             }
 
