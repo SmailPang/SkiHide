@@ -4,6 +4,7 @@ mod admin_ops;
 mod audio_ops;
 mod cache_ops;
 mod config;
+mod font_ops;
 mod logging;
 mod memory_ops;
 mod models;
@@ -126,6 +127,10 @@ impl AppState {
 
         if let Some(theme) = patch.theme {
             config.theme = theme;
+        }
+
+        if let Some(font_family) = patch.font_family {
+            config.font_family = font_family;
         }
 
         if let Some(font_size) = patch.font_size {
@@ -343,6 +348,11 @@ fn show_window(hwnd: u64, state: State<'_, AppState>) -> Result<(), String> {
 #[tauri::command]
 fn get_config(state: State<'_, AppState>) -> AppConfig {
     state.current_config()
+}
+
+#[tauri::command]
+fn list_system_fonts() -> Vec<String> {
+    font_ops::list_system_font_families()
 }
 
 #[tauri::command]
@@ -1011,6 +1021,7 @@ pub fn run() {
             hide_window,
             show_window,
             get_config,
+            list_system_fonts,
             update_config,
             set_hotkey_enabled,
             cleanup_memory,

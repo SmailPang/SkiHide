@@ -10,6 +10,7 @@ export interface AppConfig {
   language: string;
   last_selected_hwnd: number | null;
   theme: string;
+  font_family: string;
   font_size: string;
   auto_start: boolean;
   silent_start: boolean;
@@ -31,6 +32,7 @@ export interface ConfigUpdate {
   language?: string | null;
   last_selected_hwnd?: number | null;
   theme?: string | null;
+  font_family?: string | null;
   font_size?: string | null;
   auto_start?: boolean | null;
   silent_start?: boolean | null;

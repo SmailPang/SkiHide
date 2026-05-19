@@ -19,6 +19,7 @@ const VALUE_HOTKEY: &str = "Hotkey";
 const VALUE_LANGUAGE: &str = "Language";
 const VALUE_LAST_SELECTED_HWND: &str = "LastSelectedHwnd";
 const VALUE_THEME: &str = "Theme";
+const VALUE_FONT_FAMILY: &str = "FontFamily";
 const VALUE_FONT_SIZE: &str = "FontSize";
 const VALUE_AUTO_START: &str = "AutoStart";
 const VALUE_SILENT_START: &str = "SilentStart";
@@ -67,6 +68,9 @@ pub fn load_config() -> Result<AppConfig, String> {
     config.last_selected_hwnd = read_u64_value(key.raw(), VALUE_LAST_SELECTED_HWND)?;
     if let Some(theme) = read_string_value(key.raw(), VALUE_THEME)? {
         config.theme = theme;
+    }
+    if let Some(font_family) = read_string_value(key.raw(), VALUE_FONT_FAMILY)? {
+        config.font_family = font_family;
     }
     if let Some(font_size) = read_string_value(key.raw(), VALUE_FONT_SIZE)? {
         config.font_size = font_size;
@@ -176,6 +180,7 @@ pub fn save_config(config: &AppConfig) -> Result<(), String> {
         write_u64_value(key.raw(), VALUE_LAST_SELECTED_HWND, 0)?;
     }
     write_string_value(key.raw(), VALUE_THEME, &config.theme)?;
+    write_string_value(key.raw(), VALUE_FONT_FAMILY, &config.font_family)?;
     write_string_value(key.raw(), VALUE_FONT_SIZE, &config.font_size)?;
     write_bool_value(key.raw(), VALUE_AUTO_START, config.auto_start)?;
     write_bool_value(key.raw(), VALUE_SILENT_START, config.silent_start)?;

@@ -46,6 +46,8 @@ const updateChannelOptionValues: Array<'stable' | 'beta'> = ['stable', 'beta'];
 const downloadSourceOptionValues: Array<'mirror_chan' | 'github' | 'rainyun_cdn'> = ['mirror_chan', 'github', 'rainyun_cdn'];
 
 const FOREGROUND_WINDOW_HWND = 0; // 特殊值：0 表示"当前前台窗口"（窗口句柄不会是0）
+const BUILTIN_FONT_STACK = '"HarmonyOS Sans SC", "Microsoft YaHei UI", "Segoe UI", sans-serif';
+const DEFAULT_FONT_FAMILY = '';
 
 const currentPage = ref<PageKey>('home');
 const homeWindows = ref<WindowInfo[]>([]);
@@ -58,6 +60,9 @@ const language = ref<LanguageValue>((locale.value as LanguageValue) || 'zh_CN');
 const savedLanguage = ref<LanguageValue>(language.value);
 const theme = ref<'system' | 'light' | 'dark'>('system');
 const savedTheme = ref<'system' | 'light' | 'dark'>('system');
+const fontFamily = ref('');
+const savedFontFamily = ref('');
+const systemFonts = ref<string[]>([]);
 const fontSize = ref<'small' | 'medium' | 'large' | 'xlarge'>('medium');
 const savedFontSize = ref<'small' | 'medium' | 'large' | 'xlarge'>('medium');
 const autoStart = ref(false);
@@ -91,6 +96,7 @@ const cacheSelections = ref({ systemCache: false, tempFiles: false, thumbnailCac
 const cacheCleanupRunning = ref(false);
 const languageOpen = ref(false);
 const themeOpen = ref(false);
+const fontFamilyOpen = ref(false);
 const fontSizeOpen = ref(false);
 const updateSourceOpen = ref(false);
 const updateChannelOpen = ref(false);
@@ -102,6 +108,7 @@ const dangerDialogOpen = ref(false);
 const returnToUpdateAfterMirrorDialog = ref(false);
 const languageMenuUp = ref(false);
 const themeMenuUp = ref(false);
+const fontFamilyMenuUp = ref(false);
 const fontSizeMenuUp = ref(false);
 const updateSourceMenuUp = ref(false);
 const updateChannelMenuUp = ref(false);
@@ -118,7 +125,33 @@ const prefersDark = ref(false);
 const renderedTheme = ref<'light' | 'dark'>('light');
 const currentLanguageLabel = computed(() => languageOptionLabels[language.value]);
 const currentThemeLabel = computed(() => t(`optionLabels.theme.${theme.value}`));
+const currentFontFamilyLabel = computed(() => {
+  if (!fontFamily.value) return t('settings.fontFamilyDefault');
+  return fontFamily.value;
+});
+const fontFamilySelectOptions = computed(() => {
+  const options: string[] = [DEFAULT_FONT_FAMILY];
+  const seen = new Set<string>(['']);
+  if (fontFamily.value && !seen.has(fontFamily.value)) {
+    options.push(fontFamily.value);
+    seen.add(fontFamily.value);
+  }
+  for (const name of systemFonts.value) {
+    if (!seen.has(name)) {
+      options.push(name);
+      seen.add(name);
+    }
+  }
+  return options;
+});
 const currentFontSizeLabel = computed(() => t(`optionLabels.fontSize.${fontSize.value}`));
+const appFontFamilyCss = computed(() => {
+  const name = fontFamily.value.trim();
+  if (!name) return BUILTIN_FONT_STACK;
+  const escaped = name.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return `"${escaped}", "Microsoft YaHei UI", "Segoe UI", sans-serif`;
+});
+
 const currentUpdateSourceLabel = computed(() => t(`optionLabels.updateSource.${updateSource.value}`));
 const currentUpdateChannelLabel = computed(() => t(`optionLabels.updateChannel.${updateChannel.value}`));
 const currentDownloadSourceLabel = computed(() => t(`optionLabels.downloadSource.${downloadSource.value}`));
@@ -149,6 +182,7 @@ const settingsDirty = computed(
   () =>
     language.value !== savedLanguage.value ||
     theme.value !== savedTheme.value ||
+    fontFamily.value !== savedFontFamily.value ||
     fontSize.value !== savedFontSize.value ||
     autoStart.value !== savedAutoStart.value ||
     silentStart.value !== savedSilentStart.value ||
@@ -168,6 +202,19 @@ const hotkeyButtonLabel = computed(() => (recordingHotkey.value ? t('home.record
 const pauseHotkeyButtonLabel = computed(() => (recordingPauseHotkey.value ? t('settings.recordingPauseHotkey') : pauseHotkey.value || t('settings.bindPauseHotkey')));
 const memoryCleanupIntervalInvalid = computed(() => { if (!memoryAutoCleanup.value) return false; const parsedValue = Number(memoryCleanupInterval.value); return !Number.isFinite(parsedValue) || parsedValue <= 0; });
 const appShellRef = ref<HTMLElement | null>(null);
+
+function applyAppFontFamily() {
+  const stack = appFontFamilyCss.value;
+  document.documentElement.style.setProperty('--app-font-family', stack);
+  if (appShellRef.value) {
+    appShellRef.value.style.setProperty('--app-font-family', stack);
+  }
+}
+
+watch(appFontFamilyCss, () => {
+  applyAppFontFamily();
+}, { immediate: true });
+
 const themeTriggerRef = ref<HTMLElement | null>(null);
 const toolboxScrollRef = ref<HTMLElement | null>(null);
 const toolboxScrollbarRef = ref<HTMLElement | null>(null);
@@ -230,11 +277,22 @@ function shouldOpenMenuUp(trigger: HTMLElement | null, optionCount: number) {
   const spaceAbove = triggerRect.top - topBoundary;
   return spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
 }
-function toggleLanguageMenu(event: MouseEvent) { const nextOpen = !languageOpen.value; languageMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, languageOptionValues.length); languageOpen.value = nextOpen; themeOpen.value = false; fontSizeOpen.value = false; updateSourceOpen.value = false; downloadSourceOpen.value = false; }
+function toggleLanguageMenu(event: MouseEvent) { const nextOpen = !languageOpen.value; languageMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, languageOptionValues.length); languageOpen.value = nextOpen; themeOpen.value = false; fontFamilyOpen.value = false; fontSizeOpen.value = false; updateSourceOpen.value = false; downloadSourceOpen.value = false; }
 function selectLanguage(value: LanguageValue) { language.value = value; locale.value = value; languageOpen.value = false; }
-function toggleThemeMenu(event: MouseEvent) { const nextOpen = !themeOpen.value; themeMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, themeOptionValues.length); themeOpen.value = nextOpen; languageOpen.value = false; fontSizeOpen.value = false; updateSourceOpen.value = false; downloadSourceOpen.value = false; }
-function toggleFontSizeMenu(event: MouseEvent) { const nextOpen = !fontSizeOpen.value; fontSizeMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, fontSizeOptionValues.length); fontSizeOpen.value = nextOpen; languageOpen.value = false; themeOpen.value = false; updateSourceOpen.value = false; downloadSourceOpen.value = false; }
+function toggleThemeMenu(event: MouseEvent) { const nextOpen = !themeOpen.value; themeMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, themeOptionValues.length); themeOpen.value = nextOpen; languageOpen.value = false; fontFamilyOpen.value = false; fontSizeOpen.value = false; updateSourceOpen.value = false; downloadSourceOpen.value = false; }
+function toggleFontFamilyMenu(event: MouseEvent) { const nextOpen = !fontFamilyOpen.value; fontFamilyMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, Math.min(fontFamilySelectOptions.value.length, 8)); fontFamilyOpen.value = nextOpen; languageOpen.value = false; themeOpen.value = false; fontSizeOpen.value = false; updateSourceOpen.value = false; updateChannelOpen.value = false; downloadSourceOpen.value = false; }
+function selectFontFamily(value: string) { fontFamily.value = value; fontFamilyOpen.value = false; }
+function fontFamilyOptionLabel(value: string) { return value ? value : t('settings.fontFamilyDefault'); }
+function fontFamilyOptionStyle(value: string) { return value ? { fontFamily: `"${value.replace(/"/g, '\\"')}", sans-serif` } : undefined; }
+function toggleFontSizeMenu(event: MouseEvent) { const nextOpen = !fontSizeOpen.value; fontSizeMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, fontSizeOptionValues.length); fontSizeOpen.value = nextOpen; languageOpen.value = false; themeOpen.value = false; fontFamilyOpen.value = false; updateSourceOpen.value = false; downloadSourceOpen.value = false; }
 function selectFontSize(value: 'small' | 'medium' | 'large' | 'xlarge') { fontSize.value = value; fontSizeOpen.value = false; }
+async function loadSystemFonts() {
+  try {
+    systemFonts.value = await invoke<string[]>('list_system_fonts');
+  } catch (error) {
+    notify({ title: t('home.initFailed'), content: String(error), type: 'false' });
+  }
+}
 function toggleUpdateSourceMenu(event: MouseEvent) { const nextOpen = !updateSourceOpen.value; updateSourceMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, availableUpdateSourceOptionValues.value.length); updateSourceOpen.value = nextOpen; languageOpen.value = false; themeOpen.value = false; fontSizeOpen.value = false; updateChannelOpen.value = false; downloadSourceOpen.value = false; }
 function selectUpdateSource(value: 'mirror_chan' | 'skihide') { updateSource.value = value; updateSourceOpen.value = false; }
 function toggleUpdateChannelMenu(event: MouseEvent) { const nextOpen = !updateChannelOpen.value; updateChannelMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement | null, updateChannelOptionValues.length); updateChannelOpen.value = nextOpen; languageOpen.value = false; themeOpen.value = false; fontSizeOpen.value = false; updateSourceOpen.value = false; downloadSourceOpen.value = false; }
@@ -501,6 +559,7 @@ async function saveSettings() {
         language: language.value,
         last_selected_hwnd: selectedHomeWindowId.value,
         theme: theme.value,
+        font_family: fontFamily.value,
         font_size: fontSize.value,
         auto_start: autoStart.value,
         silent_start: normalizedSilentStart,
@@ -517,6 +576,7 @@ async function saveSettings() {
     });
     savedLanguage.value = language.value;
     savedTheme.value = theme.value;
+    savedFontFamily.value = fontFamily.value;
     savedFontSize.value = fontSize.value;
     savedAutoStart.value = autoStart.value;
     savedSilentStart.value = normalizedSilentStart;
@@ -534,6 +594,7 @@ async function saveSettings() {
     silentStart.value = savedSilentStart.value;
     languageOpen.value = false;
     themeOpen.value = false;
+    fontFamilyOpen.value = false;
     fontSizeOpen.value = false;
     updateSourceOpen.value = false;
     updateChannelOpen.value = false;
@@ -547,6 +608,7 @@ async function saveSettings() {
 function discardSettings() {
   language.value = savedLanguage.value;
   theme.value = savedTheme.value;
+  fontFamily.value = savedFontFamily.value;
   fontSize.value = savedFontSize.value;
   autoStart.value = savedAutoStart.value;
   silentStart.value = savedSilentStart.value;
@@ -565,6 +627,7 @@ function discardSettings() {
   locale.value = savedLanguage.value;
   languageOpen.value = false;
   themeOpen.value = false;
+  fontFamilyOpen.value = false;
   fontSizeOpen.value = false;
   updateSourceOpen.value = false;
   updateChannelOpen.value = false;
@@ -575,7 +638,7 @@ function discardSettings() {
 function toggleAutoStart() { autoStart.value = !autoStart.value; if (!autoStart.value) silentStart.value = false; }
 function toggleSilentStart() { if (!autoStart.value) return; silentStart.value = !silentStart.value; }
 function togglePauseOnHide() { pauseOnHide.value = !pauseOnHide.value; if (pauseOnHide.value) pauseHotkeyError.value = ''; }
-function handleDocumentClick(event: MouseEvent) { const target = event.target as HTMLElement | null; if (!target?.closest('.custom-select')) { languageOpen.value = false; themeOpen.value = false; fontSizeOpen.value = false; updateSourceOpen.value = false; updateChannelOpen.value = false; downloadSourceOpen.value = false; } if (!target?.closest('.listen-settings-popup') && !target?.closest('.listen-settings-button') && !target?.closest('.listen-button')) closeListenSettings(); }
+function handleDocumentClick(event: MouseEvent) { const target = event.target as HTMLElement | null; if (!target?.closest('.custom-select')) { languageOpen.value = false; themeOpen.value = false; fontFamilyOpen.value = false; fontSizeOpen.value = false; updateSourceOpen.value = false; updateChannelOpen.value = false; downloadSourceOpen.value = false; } if (!target?.closest('.listen-settings-popup') && !target?.closest('.listen-settings-button') && !target?.closest('.listen-button')) closeListenSettings(); }
 function handleColorSchemeChange(event: MediaQueryListEvent) { prefersDark.value = event.matches; if (theme.value === 'system') animateThemeChange(resolveTheme('system')); }
 function animateThemeChange(nextTheme: 'light' | 'dark') { if (renderedTheme.value === nextTheme || !appShellRef.value) { renderedTheme.value = nextTheme; return; } const shellRect = appShellRef.value.getBoundingClientRect(); const triggerRect = themeTriggerRef.value?.getBoundingClientRect(); const centerX = triggerRect ? triggerRect.left - shellRect.left + triggerRect.width / 2 : shellRect.width / 2; const centerY = triggerRect ? triggerRect.top - shellRect.top + triggerRect.height / 2 : shellRect.height / 2; const radius = Math.max(Math.hypot(centerX, centerY), Math.hypot(shellRect.width - centerX, centerY), Math.hypot(centerX, shellRect.height - centerY), Math.hypot(shellRect.width - centerX, shellRect.height - centerY)); if (themeSwitchTimer !== null) window.clearTimeout(themeSwitchTimer); themeRipple.value = { visible: false, target: nextTheme, x: centerX - radius, y: centerY - radius, size: radius * 2 }; requestAnimationFrame(() => { themeRipple.value = { ...themeRipple.value, visible: true }; }); themeSwitchTimer = window.setTimeout(() => { renderedTheme.value = nextTheme; themeSwitchTimer = null; }, 170); }
 function handleThemeRippleEnd() { themeRipple.value = { ...themeRipple.value, visible: false }; }
@@ -663,6 +726,10 @@ async function loadConfigFromBackend() {
   theme.value = nextTheme;
   savedTheme.value = nextTheme;
   animateThemeChange(resolveTheme(nextTheme));
+
+  const nextFontFamily = config.font_family?.trim() ?? '';
+  fontFamily.value = nextFontFamily;
+  savedFontFamily.value = nextFontFamily;
 
   const nextFontSize = fontSizeOptionValues.includes(config.font_size as 'small' | 'medium' | 'large' | 'xlarge') ? (config.font_size as 'small' | 'medium' | 'large' | 'xlarge') : 'medium';
   fontSize.value = nextFontSize;
@@ -1082,6 +1149,8 @@ onMounted(async () => {
   try {
     appVersion.value = await getVersion();
     await loadConfigFromBackend();
+    await loadSystemFonts();
+    applyAppFontFamily();
     privacyDialogOpen.value = !privacyConsentAccepted.value;
     await runStartupUpdateCheck();
 
@@ -1348,6 +1417,7 @@ onBeforeUnmount(() => {
             <div class="settings-section-title">{{ t('settings.appearance') }}</div>
             <div class="settings-row"><span class="settings-label">{{ t('settings.language') }}</span><div class="custom-select"><button :class="['custom-select-trigger', { open: languageOpen }]" type="button" @click.stop="toggleLanguageMenu"><span>{{ currentLanguageLabel }}</span></button><Transition name="dropdown-fade"><div v-if="languageOpen" :class="['custom-select-menu', { upward: languageMenuUp }]"><button v-for="option in languageOptionValues" :key="option" :class="['custom-select-option', { active: option === language }]" type="button" @click.stop="selectLanguage(option)">{{ languageLabel(option) }}</button></div></Transition></div></div>
             <div class="settings-row"><span class="settings-label">{{ t('settings.theme') }}</span><div class="custom-select"><button ref="themeTriggerRef" :class="['custom-select-trigger', { open: themeOpen }]" type="button" @click.stop="toggleThemeMenu"><span>{{ currentThemeLabel }}</span></button><Transition name="dropdown-fade"><div v-if="themeOpen" :class="['custom-select-menu', { upward: themeMenuUp }]"><button v-for="option in themeOptionValues" :key="option" :class="['custom-select-option', { active: option === theme }]" type="button" @click.stop="selectTheme(option)">{{ optionLabel('optionLabels.theme', option) }}</button></div></Transition></div></div>
+            <div class="settings-row"><span class="settings-label">{{ t('settings.fontFamily') }}</span><div class="custom-select"><button :class="['custom-select-trigger', { open: fontFamilyOpen }]" type="button" @click.stop="toggleFontFamilyMenu"><span>{{ currentFontFamilyLabel }}</span></button><Transition name="dropdown-fade"><div v-if="fontFamilyOpen" :class="['custom-select-menu', 'custom-select-menu-font', { upward: fontFamilyMenuUp }]"><button v-for="option in fontFamilySelectOptions" :key="option || '__default__'" :class="['custom-select-option', 'custom-select-option-font-preview', { active: option === fontFamily }]" type="button" :style="fontFamilyOptionStyle(option)" @click.stop="selectFontFamily(option)">{{ fontFamilyOptionLabel(option) }}</button></div></Transition></div></div>
             <div class="settings-row"><span class="settings-label">{{ t('settings.fontSize') }}</span><div class="custom-select"><button :class="['custom-select-trigger', { open: fontSizeOpen }]" type="button" @click.stop="toggleFontSizeMenu"><span>{{ currentFontSizeLabel }}</span></button><Transition name="dropdown-fade"><div v-if="fontSizeOpen" :class="['custom-select-menu', { upward: fontSizeMenuUp }]"><button v-for="option in fontSizeOptionValues" :key="option" :class="['custom-select-option', { active: option === fontSize }]" type="button" @click.stop="selectFontSize(option)">{{ optionLabel('optionLabels.fontSize', option) }}</button></div></Transition></div></div>
             <div class="settings-section-title settings-section-title-program">{{ t('settings.program') }}</div>
             <div class="settings-row"><span class="settings-label">{{ t('settings.autoStart') }}</span><button :class="['settings-switch', { active: autoStart }]" type="button" role="switch" :aria-checked="autoStart" @click="toggleAutoStart"><span class="settings-switch-thumb" /></button></div>
