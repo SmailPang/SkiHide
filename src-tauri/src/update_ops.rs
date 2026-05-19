@@ -51,8 +51,6 @@ pub async fn check_for_updates(
     config: &AppConfig,
 ) -> Result<UpdateCheckInfo, String> {
     let client = Client::new();
-    let normalized_current = normalize_version(current_version)?;
-
     if config.update_source == "mirror_chan" {
         let channel = match config.update_channel.as_str() {
             "beta" => "beta",
@@ -94,8 +92,7 @@ pub async fn check_for_updates(
             return Err("mirror response missing data field".to_string());
         };
 
-        let normalized_latest = normalize_version(&data.version_name)?;
-        let has_update = normalized_latest > normalized_current;
+        let has_update = has_newer_version(current_version, &data.version_name)?;
         let mut download_url = data.url.clone();
         let mut download_candidates = Vec::new();
         let mut sha256 = data.sha256.clone();
@@ -131,8 +128,7 @@ pub async fn check_for_updates(
     }
 
     let official = fetch_skihide_info(&client, &config.language).await?;
-    let normalized_latest = normalize_version(&official.version)?;
-    let has_update = normalized_latest > normalized_current;
+    let has_update = has_newer_version(current_version, &official.version)?;
     let download_candidates = if has_update {
         build_download_candidates(&config.download_source, &official.version)
     } else {
@@ -425,9 +421,73 @@ fn resolve_updates_dir() -> Result<PathBuf, String> {
     Ok(base.join("updates"))
 }
 
+/// Canonicalize SkiHide version strings so `2.0.1-Beta.2` and `2.0.1-beta2` compare equal.
+fn canonicalize_version_tag(raw: &str) -> String {
+    let trimmed = raw.trim().trim_start_matches('v').trim_start_matches('V');
+    let lower = trimmed.to_ascii_lowercase();
+
+    let Some((core, prerelease)) = lower.split_once('-') else {
+        return lower;
+    };
+
+    let core = core.trim();
+    let prerelease = normalize_prerelease_tag(prerelease.trim());
+    if prerelease.is_empty() {
+        return core.to_string();
+    }
+
+    format!("{core}-{prerelease}")
+}
+
+fn normalize_prerelease_tag(pre: &str) -> String {
+    if let Some(rest) = pre.strip_prefix("beta") {
+        let rest = rest.trim_start_matches('.').trim_start_matches('_');
+        if rest.is_empty() {
+            return "beta".to_string();
+        }
+        let digits: String = rest.chars().filter(|ch| ch.is_ascii_digit()).collect();
+        if !digits.is_empty() {
+            return format!("beta.{digits}");
+        }
+    }
+
+    pre.to_string()
+}
+
 fn normalize_version(raw: &str) -> Result<Version, String> {
-    let normalized = raw.trim().trim_start_matches('v').trim_start_matches('V');
-    Version::parse(normalized).map_err(|error| format!("invalid version `{raw}`: {error}"))
+    let canonical = canonicalize_version_tag(raw);
+    Version::parse(&canonical).map_err(|error| format!("invalid version `{raw}`: {error}"))
+}
+
+fn has_newer_version(current: &str, latest: &str) -> Result<bool, String> {
+    let current_v = normalize_version(current)?;
+    let latest_v = normalize_version(latest)?;
+    Ok(latest_v > current_v)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn beta_tags_with_different_format_are_equal() {
+        assert_eq!(
+            normalize_version("2.0.1-Beta.2").unwrap(),
+            normalize_version("2.0.1-beta2").unwrap()
+        );
+        assert!(!has_newer_version("2.0.1-Beta.2", "2.0.1-beta2").unwrap());
+        assert!(!has_newer_version("2.0.1-beta2", "2.0.1-Beta.2").unwrap());
+    }
+
+    #[test]
+    fn stable_release_is_not_older_than_beta_prerelease() {
+        assert!(!has_newer_version("2.0.1", "2.0.1-beta2").unwrap());
+    }
+
+    #[test]
+    fn newer_beta_build_is_detected() {
+        assert!(has_newer_version("2.0.1-beta1", "2.0.1-beta2").unwrap());
+    }
 }
 
 fn sanitize_version(version: &str) -> String {
