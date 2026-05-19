@@ -332,6 +332,11 @@ async fn download_update_package_once(
     let mut stream = response.bytes_stream();
 
     while let Some(chunk) = stream.next().await {
+        if crate::is_app_exiting(app) {
+            let _ = fs::remove_file(&file_path).await;
+            return Err("download cancelled because application is shutting down".to_string());
+        }
+
         let chunk = chunk.map_err(|error| format!("failed while downloading update: {error}"))?;
         file.write_all(&chunk)
             .await
@@ -344,7 +349,7 @@ async fn download_update_package_once(
                 let percent = ((downloaded as f64 / total as f64) * 100.0)
                     .round()
                     .clamp(0.0, 100.0) as u8;
-                let _ = app.emit(UPDATE_DOWNLOAD_PROGRESS_EVENT, percent);
+                emit_download_progress(app, percent);
             }
         }
     }
@@ -362,9 +367,16 @@ async fn download_update_package_once(
         }
     }
 
-    let _ = app.emit(UPDATE_DOWNLOAD_PROGRESS_EVENT, 100u8);
+    emit_download_progress(app, 100);
 
     Ok((file_path, actual_sha256))
+}
+
+fn emit_download_progress(app: &AppHandle, percent: u8) {
+    if crate::is_app_exiting(app) {
+        return;
+    }
+    let _ = app.emit(UPDATE_DOWNLOAD_PROGRESS_EVENT, percent);
 }
 
 async fn fetch_skihide_info(client: &Client, language: &str) -> Result<SkiHideResponse, String> {

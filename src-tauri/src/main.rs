@@ -15,6 +15,10 @@ mod window_ops;
 use std::{
     collections::{HashMap, HashSet},
     str::FromStr,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     thread,
     time::Duration,
 };
@@ -23,7 +27,7 @@ use parking_lot::Mutex;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, TrayIcon, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, RunEvent, State, WebviewWindow, Wry,
+    AppHandle, Emitter, Manager, RunEvent, State, WebviewWindow, WindowEvent, Wry,
 };
 use tauri_plugin_global_shortcut::{
     Builder as GlobalShortcutBuilder, GlobalShortcutExt, Shortcut, ShortcutState,
@@ -46,6 +50,7 @@ const OPEN_SETTINGS_EVENT: &str = "skihide://open-settings";
 
 struct AppState {
     app: AppHandle,
+    is_exiting: Arc<AtomicBool>,
     config: Mutex<AppConfig>,
     hidden_windows: Mutex<HashMap<u64, WindowInfo>>,
     hidden_handles: Mutex<HashSet<u64>>,
@@ -55,12 +60,20 @@ struct AppState {
     tray: Mutex<Option<TrayIcon>>,
 }
 
+/// Returns true when the application is shutting down; background work must bail out.
+pub(crate) fn is_app_exiting(app: &AppHandle) -> bool {
+    app.state::<AppState>()
+        .is_exiting
+        .load(Ordering::SeqCst)
+}
+
 impl AppState {
     fn new(app: AppHandle) -> Result<Self, String> {
         let config = load_config()?;
 
         Ok(Self {
             app,
+            is_exiting: Arc::new(AtomicBool::new(false)),
             config: Mutex::new(config),
             hidden_windows: Mutex::new(HashMap::new()),
             hidden_handles: Mutex::new(HashSet::new()),
@@ -78,6 +91,10 @@ impl AppState {
         match level {
             "ERROR" => error!("{message}"),
             _ => info!("{message}"),
+        }
+
+        if self.is_exiting.load(Ordering::SeqCst) {
+            return;
         }
 
         let payload = LogEntry {
@@ -172,6 +189,59 @@ impl AppState {
     }
 }
 
+fn begin_shutdown(state: &AppState) {
+    if state.is_exiting.swap(true, Ordering::SeqCst) {
+        return;
+    }
+
+    info!("application shutdown started");
+
+    if *state.hotkey_enabled.lock() {
+        let _ = state.app.global_shortcut().unregister_all();
+        *state.hotkey_enabled.lock() = false;
+    }
+
+    mouse_hook::shutdown_global_mouse_side_button_hook();
+
+    let mut tray = state.tray.lock();
+    if let Some(icon) = tray.take() {
+        drop(icon);
+    }
+}
+
+fn shutdown_then_exit(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    begin_shutdown(state.inner());
+    let _ = app.exit(0);
+}
+
+fn tray_show_main(app: &AppHandle) {
+    if is_app_exiting(app) {
+        return;
+    }
+    if let Some(window) = app.get_webview_window("main") {
+        focus_main_window(&window);
+    }
+}
+
+fn tray_open_settings(app: &AppHandle) {
+    if is_app_exiting(app) {
+        return;
+    }
+    if let Some(window) = app.get_webview_window("main") {
+        focus_main_window(&window);
+    }
+    let state = app.state::<AppState>();
+    state.log("INFO", "tray requested settings page");
+    let _ = app.emit(OPEN_SETTINGS_EVENT, ());
+}
+
+fn tray_request_exit(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    state.log("INFO", "tray requested app exit");
+    shutdown_then_exit(app);
+}
+
 #[tauri::command]
 fn greet(name: String) -> String {
     format!("Hello, {name}!")
@@ -179,6 +249,10 @@ fn greet(name: String) -> String {
 
 #[tauri::command]
 fn list_windows(state: State<'_, AppState>) -> Result<Vec<WindowInfo>, String> {
+    if state.is_exiting.load(Ordering::SeqCst) {
+        return Ok(Vec::new());
+    }
+
     let hidden_windows = state.hidden_windows.lock().clone();
     let windows = window_ops::list_windows(&hidden_windows);
     state.log("INFO", format!("listed {} windows", windows.len()));
@@ -194,6 +268,10 @@ fn get_foreground_window(state: State<'_, AppState>) -> Result<WindowInfo, Strin
 
 #[tauri::command]
 fn hide_window(hwnd: u64, state: State<'_, AppState>) -> Result<(), String> {
+    if state.is_exiting.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+
     let snapshot = window_ops::get_window_snapshot(hwnd)?;
     let config = state.current_config();
 
@@ -236,6 +314,10 @@ fn hide_window(hwnd: u64, state: State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 fn show_window(hwnd: u64, state: State<'_, AppState>) -> Result<(), String> {
+    if state.is_exiting.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+
     window_ops::show_window(hwnd)?;
 
     {
@@ -292,6 +374,10 @@ fn update_config(patch: ConfigUpdate, state: State<'_, AppState>) -> Result<AppC
 
 #[tauri::command]
 fn set_hotkey_enabled(enabled: bool, state: State<'_, AppState>) -> Result<(), String> {
+    if state.is_exiting.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+
     if enabled {
         let hotkey = state.current_config().hotkey;
         register_hotkey(&state.app, &hotkey, true, state.inner())?;
@@ -324,7 +410,7 @@ fn open_external_url(url: String, state: State<'_, AppState>) -> Result<(), Stri
 #[tauri::command]
 fn exit_app(state: State<'_, AppState>) {
     state.log("INFO", "app exit requested by frontend");
-    state.app.exit(0);
+    shutdown_then_exit(&state.app);
 }
 
 #[tauri::command]
@@ -382,7 +468,7 @@ if (Test-Path '{backup_escaped}') {{ Remove-Item '{backup_escaped}' -Force -Erro
         "INFO",
         format!("scheduled in-place update replacement using package: {file_path}"),
     );
-    state.app.exit(0);
+    shutdown_then_exit(&state.app);
     Ok(())
 }
 
@@ -493,6 +579,10 @@ fn register_hotkey(
     replace: bool,
     state: &AppState,
 ) -> Result<(), String> {
+    if state.is_exiting.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+
     let manager = app.global_shortcut();
 
     if replace {
@@ -572,6 +662,9 @@ fn restore_mute_on_show(hwnd: u64, state: &AppState) {
 
 fn handle_hotkey(app: &AppHandle) {
     let state = app.state::<AppState>();
+    if state.is_exiting.load(Ordering::SeqCst) {
+        return;
+    }
     if !*state.hotkey_enabled.lock() {
         return;
     }
@@ -580,6 +673,9 @@ fn handle_hotkey(app: &AppHandle) {
 
 pub(crate) fn handle_mouse_side_button_global(app: &AppHandle) {
     let state = app.state::<AppState>();
+    if state.is_exiting.load(Ordering::SeqCst) {
+        return;
+    }
     if !*state.hotkey_enabled.lock() {
         return;
     }
@@ -594,6 +690,9 @@ pub(crate) fn handle_mouse_side_button_global(app: &AppHandle) {
 
 fn toggle_selected_window(app: &AppHandle, source: &str) {
     let state = app.state::<AppState>();
+    if state.is_exiting.load(Ordering::SeqCst) {
+        return;
+    }
     let config = state.current_config();
     let Some(mut hwnd) = config.last_selected_hwnd else {
         state.log(
@@ -634,15 +733,28 @@ fn toggle_selected_window(app: &AppHandle, source: &str) {
 }
 
 fn focus_main_window(window: &WebviewWindow) {
+    let app = window.app_handle();
+    if is_app_exiting(&app) {
+        return;
+    }
+
     let _ = window.set_skip_taskbar(false);
     let _ = window.unminimize();
     let _ = window.show();
     let _ = window.set_focus();
 }
 
-fn start_minimize_to_tray_watcher(app: AppHandle) {
+fn start_minimize_to_tray_watcher(app: AppHandle, is_exiting: Arc<AtomicBool>) {
     thread::spawn(move || loop {
+        if is_exiting.load(Ordering::SeqCst) {
+            break;
+        }
+
         thread::sleep(Duration::from_millis(220));
+
+        if is_exiting.load(Ordering::SeqCst) {
+            break;
+        }
 
         let Some(window) = app.get_webview_window("main") else {
             break;
@@ -685,21 +797,16 @@ fn setup_tray(app: &tauri::App<Wry>) -> Result<(), String> {
         .menu(&menu)
         .icon(icon.clone())
         .on_menu_event(|app, event| match event.id().as_ref() {
-            "show_main" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    focus_main_window(&window);
-                }
-            }
+            "show_main" => tray_show_main(app),
             "refresh_list" => {
+                if is_app_exiting(app) {
+                    return;
+                }
                 let state = app.state::<AppState>();
                 state.log("INFO", "tray requested a window list refresh");
                 let _ = app.emit(REFRESH_EVENT, ());
             }
-            "quit_app" => {
-                let state = app.state::<AppState>();
-                state.log("INFO", "tray requested app exit");
-                app.exit(0);
-            }
+            "quit_app" => tray_request_exit(app),
             _ => {}
         })
         .build(app)
@@ -734,33 +841,15 @@ fn setup_tray_v2(app: &tauri::App<Wry>) -> Result<(), String> {
         .menu(&menu)
         .icon(icon.clone())
         .on_menu_event(|app, event| match event.id().as_ref() {
-            "show_main" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    focus_main_window(&window);
-                }
-            }
-            "open_settings" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    focus_main_window(&window);
-                }
-                let state = app.state::<AppState>();
-                state.log("INFO", "tray requested settings page");
-                let _ = app.emit(OPEN_SETTINGS_EVENT, ());
-            }
-            "quit_app" => {
-                let state = app.state::<AppState>();
-                state.log("INFO", "tray requested app exit");
-                app.exit(0);
-            }
+            "show_main" => tray_show_main(app),
+            "open_settings" => tray_open_settings(app),
+            "quit_app" => tray_request_exit(app),
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::DoubleClick { button, .. } = event {
                 if button == MouseButton::Left {
-                    let app = tray.app_handle();
-                    if let Some(window) = app.get_webview_window("main") {
-                        focus_main_window(&window);
-                    }
+                    tray_show_main(&tray.app_handle());
                 }
             }
         })
@@ -795,33 +884,15 @@ fn setup_tray_v3(app: &tauri::App<Wry>) -> Result<(), String> {
         .menu(&menu)
         .icon(icon.clone())
         .on_menu_event(|app, event| match event.id().as_ref() {
-            "show_main" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    focus_main_window(&window);
-                }
-            }
-            "open_settings" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    focus_main_window(&window);
-                }
-                let state = app.state::<AppState>();
-                state.log("INFO", "tray requested settings page");
-                let _ = app.emit(OPEN_SETTINGS_EVENT, ());
-            }
-            "quit_app" => {
-                let state = app.state::<AppState>();
-                state.log("INFO", "tray requested app exit");
-                app.exit(0);
-            }
+            "show_main" => tray_show_main(app),
+            "open_settings" => tray_open_settings(app),
+            "quit_app" => tray_request_exit(app),
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::DoubleClick { button, .. } = event {
                 if button == MouseButton::Left {
-                    let app = tray.app_handle();
-                    if let Some(window) = app.get_webview_window("main") {
-                        focus_main_window(&window);
-                    }
+                    tray_show_main(&tray.app_handle());
                 }
             }
         })
@@ -867,10 +938,20 @@ pub fn run() {
                 })
                 .build(),
         )
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                shutdown_then_exit(&window.app_handle());
+            }
+        })
         .setup(|app| {
             let state = AppState::new(app.handle().clone())?;
+            let is_exiting = state.is_exiting.clone();
             app.manage(state);
-            mouse_hook::start_global_mouse_side_button_hook(app.handle().clone())?;
+            mouse_hook::start_global_mouse_side_button_hook(
+                app.handle().clone(),
+                is_exiting.clone(),
+            )?;
 
             {
             let state = app.state::<AppState>();
@@ -878,7 +959,7 @@ pub fn run() {
             }
 
             setup_tray_v3(app)?;
-            start_minimize_to_tray_watcher(app.handle().clone());
+            start_minimize_to_tray_watcher(app.handle().clone(), is_exiting);
 
             {
                 let state = app.state::<AppState>();
@@ -946,8 +1027,12 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
-    app.run(move |_app_handle, event| {
+    app.run(move |app_handle, event| {
         if let RunEvent::Exit = event {
+            if let Some(state) = app_handle.try_state::<AppState>() {
+                begin_shutdown(state.inner());
+            }
+
             if let Some(guard) = logging_context.guard.take() {
                 drop(guard);
             }
