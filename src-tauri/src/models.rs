@@ -87,6 +87,22 @@ pub struct LogEntry {
     pub timestamp: String,
 }
 
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct MemoryCleanupRequest {
+    #[serde(default)]
+    pub auto_trigger: bool,
+    pub interval_value: Option<u32>,
+    pub interval_unit: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MemoryAutoCleanupScheduleLog {
+    pub enabled: bool,
+    pub interval_value: u32,
+    pub interval_unit: String,
+    pub scheduler_active: bool,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct MemoryCleanupReport {
     pub scanned: u32,

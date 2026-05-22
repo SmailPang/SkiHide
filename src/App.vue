@@ -8,7 +8,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { AppConfig, CacheCleanupOptions, CacheCleanupReport, MemoryCleanupReport, MemoryStatusInfo, MirrorCdkValidationInfo, MirrorDownloadInfo, UpdateCheckInfo, UpdateDownloadResult, WindowInfo } from './types';
+import type { AppConfig, CacheCleanupOptions, CacheCleanupReport, MemoryAutoCleanupScheduleLog, MemoryCleanupReport, MemoryCleanupRequest, MemoryStatusInfo, MirrorCdkValidationInfo, MirrorDownloadInfo, UpdateCheckInfo, UpdateDownloadResult, WindowInfo } from './types';
 
 type PageKey = 'home' | 'toolbox' | 'settings';
 type NoticeType = 'true' | 'false' | 'warn' | 'info';
@@ -331,7 +331,11 @@ async function saveMirrorChanSdk() {
   }
 
   try {
-    const validation = await invoke<MirrorCdkValidationInfo>('validate_mirror_cdk', { cdk: nextSdk });
+    const validationContext = returnToUpdateAfterMirrorDialog.value ? '更新流程' : '设置';
+    const validation = await invoke<MirrorCdkValidationInfo>('validate_mirror_cdk', {
+      cdk: nextSdk,
+      context: validationContext,
+    });
     if (!validation.valid || validation.mirror_code !== null) {
       const message = validation.mirror_code !== null
         ? mapMirrorError(validation.mirror_code, validation.mirror_message)
@@ -497,7 +501,6 @@ async function confirmUpdateComplete() {
   }
 }
 function openDangerDialog() { dangerDialogOpen.value = true; }
-function closeDangerDialog() { dangerDialogOpen.value = false; }
 function continueDangerAction() {
   dangerDialogOpen.value = false;
   notify({ title: t('toolbox.dangerAccepted'), content: t('toolbox.dangerAcceptedDesc'), type: 'info' });
@@ -884,6 +887,25 @@ function scheduleMemoryStatusRefresh() {
     void refreshMemoryStatus();
   }, 3000);
 }
+function buildMemoryCleanupRequest(isAutoTrigger: boolean): MemoryCleanupRequest | null {
+  if (!isAutoTrigger) return { auto_trigger: false };
+  const parsedValue = Number(memoryCleanupInterval.value);
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0) return null;
+  return {
+    auto_trigger: true,
+    interval_value: parsedValue,
+    interval_unit: memoryCleanupUnit.value,
+  };
+}
+function logMemoryAutoCleanupSchedule() {
+  const settings: MemoryAutoCleanupScheduleLog = {
+    enabled: memoryAutoCleanup.value,
+    interval_value: Number(memoryCleanupInterval.value) || 0,
+    interval_unit: memoryCleanupUnit.value,
+    scheduler_active: memoryCleanupIntervalMs() !== null,
+  };
+  void invoke('log_memory_auto_cleanup_schedule', { settings });
+}
 function scheduleMemoryCleanup() {
   clearMemoryCleanupScheduler();
   const intervalMs = memoryCleanupIntervalMs();
@@ -895,9 +917,11 @@ function scheduleMemoryCleanup() {
 async function runMemoryCleanup(isAutoTrigger = false) {
   if (memoryCleanupRunning.value) return;
   if (isAutoTrigger && memoryCleanupIntervalInvalid.value) return;
+  const request = buildMemoryCleanupRequest(isAutoTrigger);
+  if (isAutoTrigger && request === null) return;
   memoryCleanupRunning.value = true;
   try {
-    const report = await invoke<MemoryCleanupReport>('cleanup_memory');
+    const report = await invoke<MemoryCleanupReport>('cleanup_memory', { request });
     await refreshMemoryStatus();
     if (!isAutoTrigger) {
       const reclaimedMb = (report.reclaimed_bytes / 1024 / 1024).toFixed(2);
@@ -921,10 +945,31 @@ async function runMemoryCleanup(isAutoTrigger = false) {
     memoryCleanupRunning.value = false;
   }
 }
-function toggleMemoryAutoCleanup() { memoryAutoCleanup.value = !memoryAutoCleanup.value; if (memoryAutoCleanup.value && (memoryCleanupInterval.value === '' || Number(memoryCleanupInterval.value) <= 0)) memoryCleanupInterval.value = '1'; scheduleMemoryCleanup(); }
-function handleMemoryIntervalInput(event: Event) { const target = event.target as HTMLInputElement; memoryCleanupInterval.value = target.value.replace(/[^\d]/g, ''); scheduleMemoryCleanup(); }
-function finalizeMemoryIntervalInput() { if (!memoryAutoCleanup.value) return; if (memoryCleanupInterval.value === '' || Number(memoryCleanupInterval.value) <= 0) memoryCleanupInterval.value = '1'; scheduleMemoryCleanup(); }
-function selectMemoryCleanupUnit(unit: 'seconds' | 'minutes' | 'hours') { if (!memoryAutoCleanup.value) return; memoryCleanupUnit.value = unit; scheduleMemoryCleanup(); }
+function toggleMemoryAutoCleanup() {
+  memoryAutoCleanup.value = !memoryAutoCleanup.value;
+  if (memoryAutoCleanup.value && (memoryCleanupInterval.value === '' || Number(memoryCleanupInterval.value) <= 0)) {
+    memoryCleanupInterval.value = '1';
+  }
+  scheduleMemoryCleanup();
+  logMemoryAutoCleanupSchedule();
+}
+function handleMemoryIntervalInput(event: Event) {
+  const target = event.target as HTMLInputElement;
+  memoryCleanupInterval.value = target.value.replace(/[^\d]/g, '');
+  scheduleMemoryCleanup();
+}
+function finalizeMemoryIntervalInput() {
+  if (!memoryAutoCleanup.value) return;
+  if (memoryCleanupInterval.value === '' || Number(memoryCleanupInterval.value) <= 0) memoryCleanupInterval.value = '1';
+  scheduleMemoryCleanup();
+  logMemoryAutoCleanupSchedule();
+}
+function selectMemoryCleanupUnit(unit: 'seconds' | 'minutes' | 'hours') {
+  if (!memoryAutoCleanup.value) return;
+  memoryCleanupUnit.value = unit;
+  scheduleMemoryCleanup();
+  logMemoryAutoCleanupSchedule();
+}
 function toggleCacheSelection(key: keyof typeof cacheSelections.value) { cacheSelections.value[key] = !cacheSelections.value[key]; }
 async function runCacheCleanup() {
   if (cacheCleanupRunning.value) return;
@@ -1630,7 +1675,7 @@ onBeforeUnmount(() => {
     </Transition>
 
     <Transition name="dialog-fade">
-      <div v-if="dangerDialogOpen" class="dialog-overlay" @click="closeDangerDialog">
+      <div v-if="dangerDialogOpen" class="dialog-overlay" @click.stop>
         <div class="dialog-panel" @click.stop>
           <div class="dialog-title">{{ t('toolbox.dangerTitle') }}</div>
           <div class="dialog-description dialog-description-preline">{{ t('toolbox.dangerWarning') }}</div>

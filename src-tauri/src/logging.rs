@@ -20,7 +20,7 @@ pub struct LoggingContext {
 pub fn init_logging() -> Result<LoggingContext, String> {
     let logs_dir = resolve_logs_dir()?;
     fs::create_dir_all(&logs_dir)
-        .map_err(|error| format!("failed to create logs directory: {error}"))?;
+        .map_err(|error| format!("创建日志目录失败：{error}"))?;
 
     let latest_log_path = logs_dir.join("latest.log");
     let latest_file = OpenOptions::new()
@@ -28,7 +28,7 @@ pub fn init_logging() -> Result<LoggingContext, String> {
         .write(true)
         .truncate(true)
         .open(&latest_log_path)
-        .map_err(|error| format!("failed to open latest log file: {error}"))?;
+        .map_err(|error| format!("打开 latest.log 失败：{error}"))?;
 
     let (file_writer, guard) = tracing_appender::non_blocking(latest_file);
 
@@ -42,7 +42,7 @@ pub fn init_logging() -> Result<LoggingContext, String> {
 
     let subscriber = registry().with(stdout_layer).with(file_layer);
     tracing::subscriber::set_global_default(subscriber)
-        .map_err(|error| format!("failed to initialize tracing subscriber: {error}"))?;
+        .map_err(|error| format!("初始化 tracing 订阅器失败：{error}"))?;
 
     install_panic_hook(logs_dir.clone(), latest_log_path.clone());
 
@@ -55,21 +55,21 @@ pub fn init_logging() -> Result<LoggingContext, String> {
 
 pub fn archive_latest_log(latest_log_path: &Path, logs_dir: &Path) -> Result<PathBuf, String> {
     if !latest_log_path.exists() {
-        return Err("latest.log does not exist".to_string());
+        return Err("latest.log 不存在".to_string());
     }
 
     let filename = format!("{}.log", timestamp_for_file_name());
     let archive_path = logs_dir.join(filename);
 
     fs::copy(latest_log_path, &archive_path)
-        .map_err(|error| format!("failed to archive latest log: {error}"))?;
+        .map_err(|error| format!("归档 latest.log 失败：{error}"))?;
 
     Ok(archive_path)
 }
 
 fn resolve_logs_dir() -> Result<PathBuf, String> {
     let current_dir =
-        std::env::current_dir().map_err(|error| format!("failed to get current dir: {error}"))?;
+        std::env::current_dir().map_err(|error| format!("获取当前目录失败：{error}"))?;
     Ok(current_dir.join("logs"))
 }
 
@@ -86,82 +86,82 @@ fn write_error_log(
     latest_log_path: &Path,
     panic_info: &PanicHookInfo<'_>,
 ) -> Result<(), String> {
-    fs::create_dir_all(logs_dir).map_err(|error| format!("failed to ensure logs dir: {error}"))?;
+    fs::create_dir_all(logs_dir).map_err(|error| format!("确保日志目录存在失败：{error}"))?;
     let error_log_path = logs_dir.join("error.log");
 
     let mut file = File::create(&error_log_path)
-        .map_err(|error| format!("failed to create error.log: {error}"))?;
+        .map_err(|error| format!("创建 error.log 失败：{error}"))?;
 
     let timestamp = timestamp_seconds();
-    writeln!(file, "SkiHide Crash Report")
-        .map_err(|error| format!("failed to write crash report header: {error}"))?;
-    writeln!(file, "timestamp_unix: {timestamp}")
-        .map_err(|error| format!("failed to write crash timestamp: {error}"))?;
-    writeln!(file, "os: {}", std::env::consts::OS)
-        .map_err(|error| format!("failed to write os: {error}"))?;
-    writeln!(file, "arch: {}", std::env::consts::ARCH)
-        .map_err(|error| format!("failed to write arch: {error}"))?;
-    writeln!(file, "family: {}", std::env::consts::FAMILY)
-        .map_err(|error| format!("failed to write family: {error}"))?;
+    writeln!(file, "SkiHide 崩溃报告")
+        .map_err(|error| format!("写入崩溃报告标题失败：{error}"))?;
+    writeln!(file, "时间戳_unix: {timestamp}")
+        .map_err(|error| format!("写入崩溃时间戳失败：{error}"))?;
+    writeln!(file, "操作系统: {}", std::env::consts::OS)
+        .map_err(|error| format!("写入操作系统信息失败：{error}"))?;
+    writeln!(file, "架构: {}", std::env::consts::ARCH)
+        .map_err(|error| format!("写入架构信息失败：{error}"))?;
+    writeln!(file, "系统族: {}", std::env::consts::FAMILY)
+        .map_err(|error| format!("写入系统族信息失败：{error}"))?;
     writeln!(
         file,
-        "current_dir: {}",
+        "当前目录: {}",
         std::env::current_dir()
             .ok()
             .map(|v| v.display().to_string())
-            .unwrap_or_else(|| "unknown".to_string())
+            .unwrap_or_else(|| "未知".to_string())
     )
-    .map_err(|error| format!("failed to write current_dir: {error}"))?;
+    .map_err(|error| format!("写入当前目录失败：{error}"))?;
     writeln!(
         file,
-        "exe_path: {}",
+        "可执行文件路径: {}",
         std::env::current_exe()
             .ok()
             .map(|v| v.display().to_string())
-            .unwrap_or_else(|| "unknown".to_string())
+            .unwrap_or_else(|| "未知".to_string())
     )
-    .map_err(|error| format!("failed to write exe_path: {error}"))?;
+    .map_err(|error| format!("写入可执行文件路径失败：{error}"))?;
     writeln!(
         file,
-        "username: {}",
-        std::env::var("USERNAME").unwrap_or_else(|_| "unknown".to_string())
+        "用户名: {}",
+        std::env::var("USERNAME").unwrap_or_else(|_| "未知".to_string())
     )
-    .map_err(|error| format!("failed to write username: {error}"))?;
+    .map_err(|error| format!("写入用户名失败：{error}"))?;
     writeln!(
         file,
-        "computer_name: {}",
-        std::env::var("COMPUTERNAME").unwrap_or_else(|_| "unknown".to_string())
+        "计算机名: {}",
+        std::env::var("COMPUTERNAME").unwrap_or_else(|_| "未知".to_string())
     )
-    .map_err(|error| format!("failed to write computer_name: {error}"))?;
-    writeln!(file).map_err(|error| format!("failed to write spacer: {error}"))?;
+    .map_err(|error| format!("写入计算机名失败：{error}"))?;
+    writeln!(file).map_err(|error| format!("写入空行失败：{error}"))?;
 
-    writeln!(file, "panic_message: {}", panic_payload(panic_info))
-        .map_err(|error| format!("failed to write panic_message: {error}"))?;
+    writeln!(file, "崩溃信息: {}", panic_payload(panic_info))
+        .map_err(|error| format!("写入崩溃信息失败：{error}"))?;
     if let Some(location) = panic_info.location() {
         writeln!(
             file,
-            "panic_location: {}:{}:{}",
+            "崩溃位置: {}:{}:{}",
             location.file(),
             location.line(),
             location.column()
         )
-        .map_err(|error| format!("failed to write panic_location: {error}"))?;
+        .map_err(|error| format!("写入崩溃位置失败：{error}"))?;
     } else {
-        writeln!(file, "panic_location: unknown")
-            .map_err(|error| format!("failed to write panic_location: {error}"))?;
+        writeln!(file, "崩溃位置: 未知")
+            .map_err(|error| format!("写入崩溃位置失败：{error}"))?;
     }
-    writeln!(file).map_err(|error| format!("failed to write spacer: {error}"))?;
+    writeln!(file).map_err(|error| format!("写入空行失败：{error}"))?;
 
     let backtrace = Backtrace::force_capture();
-    writeln!(file, "backtrace:\n{backtrace}")
-        .map_err(|error| format!("failed to write backtrace: {error}"))?;
-    writeln!(file).map_err(|error| format!("failed to write spacer: {error}"))?;
+    writeln!(file, "调用栈:\n{backtrace}")
+        .map_err(|error| format!("写入调用栈失败：{error}"))?;
+    writeln!(file).map_err(|error| format!("写入空行失败：{error}"))?;
 
-    writeln!(file, "latest_log_tail:")
-        .map_err(|error| format!("failed to write latest_log_tail header: {error}"))?;
+    writeln!(file, "latest.log 末尾片段:")
+        .map_err(|error| format!("写入日志末尾标题失败：{error}"))?;
     for line in tail_lines(latest_log_path, 300) {
         writeln!(file, "{line}")
-            .map_err(|error| format!("failed to write latest_log_tail line: {error}"))?;
+            .map_err(|error| format!("写入日志末尾行失败：{error}"))?;
     }
 
     Ok(())
@@ -176,13 +176,13 @@ fn panic_payload(panic_info: &PanicHookInfo<'_>) -> String {
         return message.clone();
     }
 
-    "non-string panic payload".to_string()
+    "非字符串类型的崩溃载荷".to_string()
 }
 
 fn tail_lines(path: &Path, max_lines: usize) -> Vec<String> {
     let file = match File::open(path) {
         Ok(file) => file,
-        Err(_) => return vec!["<unable to read latest.log>".to_string()],
+        Err(_) => return vec!["<无法读取 latest.log>".to_string()],
     };
 
     let reader = BufReader::new(file);

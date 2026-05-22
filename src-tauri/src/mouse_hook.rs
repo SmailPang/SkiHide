@@ -7,6 +7,8 @@ use std::{
 };
 
 use tauri::AppHandle;
+
+use crate::log_messages;
 use windows::Win32::{
     Foundation::{LPARAM, LRESULT, WPARAM},
     System::Threading::GetCurrentThreadId,
@@ -35,15 +37,13 @@ pub fn start_global_mouse_side_button_hook(
             let hook = match SetWindowsHookExW(WH_MOUSE_LL, Some(low_level_mouse_proc), None, 0) {
                 Ok(hook) => hook,
                 Err(error) => {
-                    tracing::error!(
-                        "failed to install global mouse side button hook: {error}"
-                    );
+                    tracing::error!("{}", log_messages::mouse_hook_install_failed(&error));
                     HOOK_THREAD_ID.store(0, Ordering::SeqCst);
                     return;
                 }
             };
 
-            tracing::info!("global mouse side button hook installed");
+            tracing::info!("{}", log_messages::mouse_hook_installed());
 
             let mut message = MSG::default();
             while GetMessageW(&mut message, None, 0, 0).into() {
@@ -53,7 +53,7 @@ pub fn start_global_mouse_side_button_hook(
 
             let _ = UnhookWindowsHookEx(hook);
             HOOK_THREAD_ID.store(0, Ordering::SeqCst);
-            tracing::info!("global mouse side button hook removed");
+            tracing::info!("{}", log_messages::mouse_hook_removed());
         })
         .map_err(|error| format!("failed to spawn mouse side button hook thread: {error}"))?;
 

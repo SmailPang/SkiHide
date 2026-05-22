@@ -5,6 +5,7 @@ mod audio_ops;
 mod cache_ops;
 mod config;
 mod font_ops;
+mod log_messages;
 mod logging;
 mod memory_ops;
 mod models;
@@ -39,8 +40,9 @@ use crate::{
     config::{load_config, save_config},
     models::{
         AppConfig, CacheCleanupOptions, CacheCleanupReport, ConfigUpdate, LogEntry,
-        MirrorCdkValidationInfo, MirrorDownloadInfo,
-        MemoryCleanupReport, MemoryStatusInfo, UpdateCheckInfo, UpdateDownloadResult, WindowInfo,
+        MemoryAutoCleanupScheduleLog, MemoryCleanupRequest, MirrorCdkValidationInfo,
+        MirrorDownloadInfo, MemoryCleanupReport, MemoryStatusInfo, UpdateCheckInfo,
+        UpdateDownloadResult, WindowInfo,
     },
 };
 
@@ -98,8 +100,12 @@ impl AppState {
             return;
         }
 
+        let level_label = match level {
+            "ERROR" => "错误",
+            _ => "信息",
+        };
         let payload = LogEntry {
-            level: level.to_string(),
+            level: level_label.to_string(),
             message,
             timestamp,
         };
@@ -199,7 +205,7 @@ fn begin_shutdown(state: &AppState) {
         return;
     }
 
-    info!("application shutdown started");
+    info!("{}", log_messages::application_shutdown_started());
 
     if *state.hotkey_enabled.lock() {
         let _ = state.app.global_shortcut().unregister_all();
@@ -237,13 +243,13 @@ fn tray_open_settings(app: &AppHandle) {
         focus_main_window(&window);
     }
     let state = app.state::<AppState>();
-    state.log("INFO", "tray requested settings page");
+    state.log("INFO", log_messages::tray_requested_settings());
     let _ = app.emit(OPEN_SETTINGS_EVENT, ());
 }
 
 fn tray_request_exit(app: &AppHandle) {
     let state = app.state::<AppState>();
-    state.log("INFO", "tray requested app exit");
+    state.log("INFO", log_messages::tray_requested_exit());
     shutdown_then_exit(app);
 }
 
@@ -260,14 +266,17 @@ fn list_windows(state: State<'_, AppState>) -> Result<Vec<WindowInfo>, String> {
 
     let hidden_windows = state.hidden_windows.lock().clone();
     let windows = window_ops::list_windows(&hidden_windows);
-    state.log("INFO", format!("listed {} windows", windows.len()));
+    state.log("INFO", log_messages::listed_windows(windows.len()));
     Ok(windows)
 }
 
 #[tauri::command]
 fn get_foreground_window(state: State<'_, AppState>) -> Result<WindowInfo, String> {
     let window_info = window_ops::get_foreground_window_info()?;
-    state.log("INFO", format!("got foreground window: {} ({})", window_info.title, window_info.hwnd));
+    state.log(
+        "INFO",
+        log_messages::got_foreground_window(&window_info.title, window_info.hwnd),
+    );
     Ok(window_info)
 }
 
@@ -284,7 +293,10 @@ fn hide_window(hwnd: u64, state: State<'_, AppState>) -> Result<(), String> {
         let pause_hotkey = config.pause_hotkey.trim();
         if !pause_hotkey.is_empty() {
             if let Err(error) = window_ops::simulate_hotkey(hwnd, pause_hotkey) {
-                state.log("ERROR", format!("pause-on-hide failed for window {hwnd}: {error}"));
+                state.log(
+                    "ERROR",
+                    log_messages::pause_on_hide_failed(hwnd, &error),
+                );
             } else {
                 thread::sleep(Duration::from_millis(90));
             }
@@ -313,7 +325,10 @@ fn hide_window(hwnd: u64, state: State<'_, AppState>) -> Result<(), String> {
         apply_mute_on_hide(hwnd, state.inner());
     }
 
-    state.log("INFO", format!("hid window {hwnd} ({})", snapshot.title));
+    state.log(
+        "INFO",
+        log_messages::hid_window(hwnd, &snapshot.title),
+    );
     Ok(())
 }
 
@@ -341,7 +356,7 @@ fn show_window(hwnd: u64, state: State<'_, AppState>) -> Result<(), String> {
 
     restore_mute_on_show(hwnd, state.inner());
 
-    state.log("INFO", format!("restored window {hwnd}"));
+    state.log("INFO", log_messages::restored_window(hwnd));
     Ok(())
 }
 
@@ -373,10 +388,7 @@ fn update_config(patch: ConfigUpdate, state: State<'_, AppState>) -> Result<AppC
     if previous != next {
         state.log(
             "INFO",
-            format!(
-                "config updated: hotkey={}, language={}, last_selected={:?}",
-                next.hotkey, next.language, next.last_selected_hwnd
-            ),
+            log_messages::describe_config_changes(&previous, &next),
         );
     }
     Ok(next)
@@ -392,7 +404,7 @@ fn set_hotkey_enabled(enabled: bool, state: State<'_, AppState>) -> Result<(), S
         let hotkey = state.current_config().hotkey;
         register_hotkey(&state.app, &hotkey, true, state.inner())?;
         *state.hotkey_enabled.lock() = true;
-        state.log("INFO", "hotkey listener enabled");
+        state.log("INFO", log_messages::hotkey_listener_enabled());
         return Ok(());
     }
 
@@ -402,7 +414,7 @@ fn set_hotkey_enabled(enabled: bool, state: State<'_, AppState>) -> Result<(), S
         .unregister_all()
         .map_err(|error| format!("failed to unregister hotkeys: {error}"))?;
     *state.hotkey_enabled.lock() = false;
-    state.log("INFO", "hotkey listener disabled");
+    state.log("INFO", log_messages::hotkey_listener_disabled());
     Ok(())
 }
 
@@ -413,13 +425,13 @@ fn open_external_url(url: String, state: State<'_, AppState>) -> Result<(), Stri
         .spawn()
         .map_err(|error| format!("failed to open external url: {error}"))?;
 
-    state.log("INFO", format!("opened external url: {url}"));
+    state.log("INFO", log_messages::opened_external_url(&url));
     Ok(())
 }
 
 #[tauri::command]
 fn exit_app(state: State<'_, AppState>) {
-    state.log("INFO", "app exit requested by frontend");
+    state.log("INFO", log_messages::app_exit_requested_by_frontend());
     shutdown_then_exit(&state.app);
 }
 
@@ -476,23 +488,62 @@ if (Test-Path '{backup_escaped}') {{ Remove-Item '{backup_escaped}' -Force -Erro
 
     state.log(
         "INFO",
-        format!("scheduled in-place update replacement using package: {file_path}"),
+        log_messages::scheduled_in_place_update(&file_path),
     );
     shutdown_then_exit(&state.app);
     Ok(())
 }
 
 #[tauri::command]
-fn cleanup_memory(state: State<'_, AppState>) -> Result<MemoryCleanupReport, String> {
+fn cleanup_memory(
+    request: Option<MemoryCleanupRequest>,
+    state: State<'_, AppState>,
+) -> Result<MemoryCleanupReport, String> {
+    let request = request.unwrap_or_default();
     let report = memory_ops::cleanup_system_memory()?;
+
+    let message = if request.auto_trigger {
+        let interval_value = request.interval_value.unwrap_or(0);
+        let interval_unit = request
+            .interval_unit
+            .as_deref()
+            .unwrap_or("minutes");
+        log_messages::memory_auto_cleanup_triggered(
+            interval_value,
+            interval_unit,
+            report.scanned,
+            report.cleaned,
+            report.failed,
+            report.reclaimed_bytes,
+        )
+    } else {
+        log_messages::memory_manual_cleanup_completed(
+            report.scanned,
+            report.cleaned,
+            report.failed,
+            report.reclaimed_bytes,
+        )
+    };
+
+    state.log("INFO", message);
+    Ok(report)
+}
+
+#[tauri::command]
+fn log_memory_auto_cleanup_schedule(
+    settings: MemoryAutoCleanupScheduleLog,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     state.log(
         "INFO",
-        format!(
-            "memory cleanup completed: scanned={}, cleaned={}, failed={}, reclaimed_bytes={}",
-            report.scanned, report.cleaned, report.failed, report.reclaimed_bytes
+        log_messages::memory_auto_cleanup_schedule(
+            settings.enabled,
+            settings.interval_value,
+            &settings.interval_unit,
+            settings.scheduler_active,
         ),
     );
-    Ok(report)
+    Ok(())
 }
 
 #[tauri::command]
@@ -508,9 +559,11 @@ fn cleanup_cache(
     let report = cache_ops::cleanup_cache(&options);
     state.log(
         "INFO",
-        format!(
-            "cache cleanup completed: selected={}, cleaned={}, failed={}, reclaimed_bytes={}",
-            report.selected, report.cleaned, report.failed, report.reclaimed_bytes
+        log_messages::cache_cleanup_completed(
+            &options,
+            report.cleaned,
+            report.failed,
+            report.reclaimed_bytes,
         ),
     );
     Ok(report)
@@ -524,9 +577,11 @@ async fn check_for_updates(state: State<'_, AppState>) -> Result<UpdateCheckInfo
     let result = update_ops::check_for_updates(&current_version, &config).await?;
     state.log(
         "INFO",
-        format!(
-            "update check completed: source={}, current={}, latest={}, has_update={}",
-            result.source, result.current_version, result.latest_version, result.has_update
+        log_messages::update_check_completed(
+            &result.source,
+            &result.current_version,
+            &result.latest_version,
+            result.has_update,
         ),
     );
     Ok(result)
@@ -549,7 +604,7 @@ async fn download_update_package(
 
     state.log(
         "INFO",
-        format!("update package downloaded to {}", result.file_path),
+        log_messages::update_package_downloaded(&result.file_path),
     );
     Ok(result)
 }
@@ -567,19 +622,38 @@ async fn resolve_mirror_download_url(state: State<'_, AppState>) -> Result<Mirro
 }
 
 #[tauri::command]
-async fn validate_mirror_cdk(cdk: String, state: State<'_, AppState>) -> Result<MirrorCdkValidationInfo, String> {
+async fn validate_mirror_cdk(
+    cdk: String,
+    context: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<MirrorCdkValidationInfo, String> {
+    let log_context = context
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("Mirror 酱 CDK 校验");
+
     let config = state.current_config();
     let current_version = state.app.package_info().version.to_string();
     let channel = match config.update_channel.as_str() {
         "beta" => "beta",
         _ => "stable",
     };
-    let result = update_ops::validate_mirror_cdk(&current_version, &cdk, channel).await?;
-    if let Some(code) = result.mirror_code {
-        state.log("INFO", format!("mirror cdk validation failed with code={code}"));
-    } else {
-        state.log("INFO", "mirror cdk validation passed");
-    }
+
+    let result = match update_ops::validate_mirror_cdk(&current_version, &cdk, channel).await {
+        Ok(result) => result,
+        Err(error) => {
+            state.log(
+                "ERROR",
+                log_messages::mirror_cdk_validation_request_failed(log_context, &error),
+            );
+            return Err(error);
+        }
+    };
+
+    state.log(
+        "INFO",
+        log_messages::mirror_cdk_validation_result(&result, log_context),
+    );
     Ok(result)
 }
 
@@ -603,7 +677,7 @@ fn register_hotkey(
 
     let hotkey = hotkey.trim();
     if hotkey.is_empty() {
-        state.log("INFO", "hotkey cleared");
+        state.log("INFO", log_messages::hotkey_cleared());
         return Ok(());
     }
 
@@ -614,7 +688,7 @@ fn register_hotkey(
         .register(shortcut)
         .map_err(|error| format!("failed to register hotkey {hotkey}: {error}"))?;
 
-    state.log("INFO", format!("registered hotkey {hotkey}"));
+    state.log("INFO", log_messages::registered_hotkey(hotkey));
     Ok(())
 }
 
@@ -629,23 +703,23 @@ fn apply_mute_on_hide(hwnd: u64, state: &AppState) {
 
     match audio_ops::is_system_muted() {
         Ok(true) => {
-            state.log(
-                "INFO",
-                "mute-on-hide skipped because system is already muted",
-            );
+            state.log("INFO", log_messages::mute_on_hide_skipped_already_muted());
         }
         Ok(false) => match audio_ops::set_system_mute(true) {
             Ok(()) => {
                 *mute_applied = true;
                 tracked.insert(hwnd);
-                state.log("INFO", format!("mute-on-hide applied for window {hwnd}"));
+                state.log("INFO", log_messages::mute_on_hide_applied(hwnd));
             }
             Err(error) => {
-                state.log("ERROR", format!("mute-on-hide failed: {error}"));
+                state.log("ERROR", log_messages::mute_on_hide_failed(&error));
             }
         },
         Err(error) => {
-            state.log("ERROR", format!("mute-on-hide state check failed: {error}"));
+            state.log(
+                "ERROR",
+                log_messages::mute_on_hide_state_check_failed(&error),
+            );
         }
     }
 }
@@ -662,10 +736,10 @@ fn restore_mute_on_show(hwnd: u64, state: &AppState) {
     match audio_ops::set_system_mute(false) {
         Ok(()) => {
             *mute_applied = false;
-            state.log("INFO", format!("mute-on-hide restored for window {hwnd}"));
+            state.log("INFO", log_messages::mute_on_hide_restored(hwnd));
         }
         Err(error) => {
-            state.log("ERROR", format!("failed to restore mute-on-hide: {error}"));
+            state.log("ERROR", log_messages::mute_on_hide_restore_failed(&error));
         }
     }
 }
@@ -678,7 +752,7 @@ fn handle_hotkey(app: &AppHandle) {
     if !*state.hotkey_enabled.lock() {
         return;
     }
-    toggle_selected_window(app, "hotkey");
+    toggle_selected_window(app, "热键");
 }
 
 pub(crate) fn handle_mouse_side_button_global(app: &AppHandle) {
@@ -695,7 +769,7 @@ pub(crate) fn handle_mouse_side_button_global(app: &AppHandle) {
         return;
     }
 
-    toggle_selected_window(app, "mouse side button");
+    toggle_selected_window(app, "鼠标侧键");
 }
 
 fn toggle_selected_window(app: &AppHandle, source: &str) {
@@ -705,10 +779,7 @@ fn toggle_selected_window(app: &AppHandle, source: &str) {
     }
     let config = state.current_config();
     let Some(mut hwnd) = config.last_selected_hwnd else {
-        state.log(
-            "ERROR",
-            format!("{source} triggered, but no selected window is available"),
-        );
+        state.log("ERROR", log_messages::trigger_no_selected_window(source));
         return;
     };
 
@@ -719,11 +790,18 @@ fn toggle_selected_window(app: &AppHandle, source: &str) {
                 hwnd = window_info.hwnd;
                 state.log(
                     "INFO",
-                    format!("{source} using foreground window: {} ({})", window_info.title, hwnd),
+                    log_messages::trigger_using_foreground_window(
+                        source,
+                        &window_info.title,
+                        hwnd,
+                    ),
                 );
             }
             Err(error) => {
-                state.log("ERROR", format!("{source} failed to get foreground window: {error}"));
+                state.log(
+                    "ERROR",
+                    log_messages::trigger_foreground_failed(source, &error),
+                );
                 return;
             }
         }
@@ -738,7 +816,7 @@ fn toggle_selected_window(app: &AppHandle, source: &str) {
 
     if let Err(error) = result {
         let state = app.state::<AppState>();
-        state.log("ERROR", format!("{source} action failed: {error}"));
+        state.log("ERROR", log_messages::trigger_action_failed(source, &error));
     }
 }
 
@@ -813,7 +891,7 @@ fn setup_tray(app: &tauri::App<Wry>) -> Result<(), String> {
                     return;
                 }
                 let state = app.state::<AppState>();
-                state.log("INFO", "tray requested a window list refresh");
+                state.log("INFO", log_messages::tray_requested_window_refresh());
                 let _ = app.emit(REFRESH_EVENT, ());
             }
             "quit_app" => tray_request_exit(app),
@@ -927,14 +1005,14 @@ fn timestamp_string() -> String {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut logging_context = logging::init_logging().unwrap_or_else(|error| {
-        panic!("failed to initialize logging system: {error}");
+        panic!("初始化日志系统失败：{error}");
     });
 
     match admin_ops::ensure_elevated_startup() {
         Ok(true) => return,
         Ok(false) => {}
         Err(error) => {
-            warn!("failed to relaunch with administrator privileges: {error}");
+            warn!("{}", log_messages::failed_relaunch_as_admin(&error));
         }
     }
 
@@ -965,7 +1043,7 @@ pub fn run() {
 
             {
             let state = app.state::<AppState>();
-            state.log("INFO", "application setup completed");
+            state.log("INFO", log_messages::application_setup_completed());
             }
 
             setup_tray_v3(app)?;
@@ -977,7 +1055,10 @@ pub fn run() {
                 if let Err(error) =
                     startup_ops::sync_startup_registration(cfg.auto_start, cfg.silent_start)
                 {
-                    state.log("ERROR", format!("failed to sync startup registration: {error}"));
+                    state.log(
+                        "ERROR",
+                        log_messages::failed_sync_startup_registration(&error),
+                    );
                 }
 
                 // 如果启用了启动时自动监听，则自动开始监听
@@ -997,9 +1078,12 @@ pub fn run() {
                     if has_hotkey || has_mouse_listener {
                         *state.hotkey_enabled.lock() = true;
                         if let Err(error) = register_hotkey(&app.handle(), &cfg.hotkey, true, state.inner()) {
-                            state.log("ERROR", format!("failed to auto-enable hotkey on startup: {error}"));
+                            state.log(
+                                "ERROR",
+                                log_messages::failed_auto_enable_hotkey_on_startup(&error),
+                            );
                         } else {
-                            state.log("INFO", "auto-enabled hotkey listener on startup");
+                            state.log("INFO", log_messages::auto_enabled_hotkey_on_startup());
                         }
                     }
                 }
@@ -1025,6 +1109,7 @@ pub fn run() {
             update_config,
             set_hotkey_enabled,
             cleanup_memory,
+            log_memory_auto_cleanup_schedule,
             get_memory_status,
             cleanup_cache,
             open_external_url,

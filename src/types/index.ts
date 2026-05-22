@@ -55,6 +55,19 @@ export interface LogEntry {
   timestamp: string;
 }
 
+export interface MemoryCleanupRequest {
+  auto_trigger?: boolean;
+  interval_value?: number | null;
+  interval_unit?: 'seconds' | 'minutes' | 'hours' | null;
+}
+
+export interface MemoryAutoCleanupScheduleLog {
+  enabled: boolean;
+  interval_value: number;
+  interval_unit: 'seconds' | 'minutes' | 'hours';
+  scheduler_active: boolean;
+}
+
 export interface MemoryCleanupReport {
   scanned: number;
   cleaned: number;

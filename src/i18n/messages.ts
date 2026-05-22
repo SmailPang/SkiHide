@@ -512,7 +512,7 @@ export const messages = {
   ja_JP: {
     nav: {
       home: 'ホーム',
-      toolbox: 'ツールボックス',
+      toolbox: 'ツール',
       settings: '設定',
     },
     common: {
