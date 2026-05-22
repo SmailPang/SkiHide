@@ -2135,6 +2135,18 @@ main {
   font-weight: 700;
 }
 
+.update-dialog-markdown a.md-link {
+  color: #0b7fc1;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+
+.update-dialog-markdown a.md-link:hover {
+  color: #086a9e;
+}
+
 .md-spacer {
   height: 4px;
 }
@@ -2311,6 +2323,14 @@ main {
 .theme-dark .update-dialog-markdown h3,
 .theme-dark .update-dialog-markdown strong {
   color: #f3f3f3;
+}
+
+.theme-dark .update-dialog-markdown a.md-link {
+  color: #4db8ff;
+}
+
+.theme-dark .update-dialog-markdown a.md-link:hover {
+  color: #7ecaff;
 }
 
 .theme-dark .update-dialog-markdown {

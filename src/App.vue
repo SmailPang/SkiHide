@@ -502,27 +502,77 @@ function continueDangerAction() {
   dangerDialogOpen.value = false;
   notify({ title: t('toolbox.dangerAccepted'), content: t('toolbox.dangerAcceptedDesc'), type: 'info' });
 }
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function sanitizeMarkdownLinkUrl(url: string): string | null {
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+
+  let candidate = trimmed;
+  if (!/^[\w-]+:/i.test(candidate)) {
+    candidate = `https://${candidate}`;
+  }
+
+  try {
+    const parsed = new URL(candidate);
+    const protocol = parsed.protocol.toLowerCase();
+    if (protocol === 'http:' || protocol === 'https:' || protocol === 'mailto:') {
+      return candidate;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function formatMarkdownInline(raw: string) {
+  const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
+  let result = '';
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = linkPattern.exec(raw)) !== null) {
+    result += escapeHtml(raw.slice(lastIndex, match.index));
+    const label = match[1] ?? '';
+    const href = sanitizeMarkdownLinkUrl(match[2] ?? '');
+    if (href) {
+      result += `<a class="md-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
+    } else {
+      result += escapeHtml(match[0]);
+    }
+    lastIndex = match.index + match[0].length;
+  }
+
+  result += escapeHtml(raw.slice(lastIndex));
+  return result.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+}
+
 function renderSimpleMarkdown(markdown: string) {
-  const escapeHtml = (value: string) =>
-    value
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-  const inlineFormat = (value: string) =>
-    value.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   return markdown
     .trim()
     .split('\n')
     .map((line) => {
-      const escaped = inlineFormat(escapeHtml(line.trim()));
-      if (!escaped) return '<div class="md-spacer"></div>';
-      const heading = escaped.match(/^(#{1,6})\s+(.+)$/);
+      const trimmed = line.trim();
+      if (!trimmed) return '<div class="md-spacer"></div>';
+
+      const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
       if (heading) {
         const level = Math.min(6, Math.max(1, heading[1].length));
-        return `<h${level}>${heading[2]}</h${level}>`;
+        return `<h${level}>${formatMarkdownInline(heading[2])}</h${level}>`;
       }
-      if (escaped.startsWith('- ')) return `<li>${escaped.slice(2)}</li>`;
-      return `<p>${escaped}</p>`;
+
+      if (trimmed.startsWith('- ')) {
+        return `<li>${formatMarkdownInline(trimmed.slice(2))}</li>`;
+      }
+
+      return `<p>${formatMarkdownInline(trimmed)}</p>`;
     })
     .join('')
     .replace(/(<li>.*?<\/li>)+/g, (match) => `<ul>${match}</ul>`);
@@ -1114,6 +1164,17 @@ watch([currentPage, activeToolboxCard], () => {
 function optionLabel(path: string, value: OptionValue) { return t(`${path}.${value}`); }
 function languageLabel(value: LanguageValue) { return languageOptionLabels[value]; }
 function openExternalUrl(url: string) { void invoke('open_external_url', { url }); }
+function handleChangelogLinkClick(event: MouseEvent) {
+  const target = event.target as HTMLElement | null;
+  const anchor = target?.closest('a.md-link');
+  if (!(anchor instanceof HTMLAnchorElement)) return;
+
+  const href = anchor.getAttribute('href');
+  if (!href) return;
+
+  event.preventDefault();
+  openExternalUrl(href);
+}
 function openGithubProfile() { openExternalUrl('https://github.com/SmailPang'); }
 function openPrivacyPolicy() { openExternalUrl(PRIVACY_POLICY_URL); }
 async function acceptPrivacyConsent() {
@@ -1537,7 +1598,7 @@ onBeforeUnmount(() => {
           <div class="update-dialog-version">{{ t('updateDialog.latestVersion') }} {{ latestVersion }}</div>
           <div class="update-dialog-log">
             <div class="update-dialog-log-title">{{ t('updateDialog.changelog') }}</div>
-            <div class="update-dialog-markdown" v-html="renderedUpdateChangelog" />
+            <div class="update-dialog-markdown" v-html="renderedUpdateChangelog" @click="handleChangelogLinkClick" />
           </div>
           <div v-if="updateInProgress || updateProgress > 0" class="update-progress-block">
             <div class="update-progress-track">
