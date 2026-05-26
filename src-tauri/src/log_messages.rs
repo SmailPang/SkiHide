@@ -330,15 +330,29 @@ pub fn memory_auto_cleanup_schedule(
     }
 }
 
+fn format_reclaimed(bytes: u64) -> String {
+    const GB: f64 = 1024.0 * 1024.0 * 1024.0;
+    const MB: f64 = 1024.0 * 1024.0;
+    let f = bytes as f64;
+    if f >= GB {
+        format!("{:.2} GB", f / GB)
+    } else {
+        format!("{:.1} MB", f / MB)
+    }
+}
+
 pub fn memory_manual_cleanup_completed(
     scanned: u32,
     cleaned: u32,
     failed: u32,
     reclaimed_bytes: u64,
 ) -> String {
-    format!(
-        "手动清理内存完成：扫描={scanned}，成功={cleaned}，失败={failed}，释放字节={reclaimed_bytes}"
-    )
+    let freed = format_reclaimed(reclaimed_bytes);
+    if failed == 0 {
+        format!("手动内存优化完成：{cleaned}/{scanned} 步骤全部成功，共释放 {freed}（详细日志见 latest.log）")
+    } else {
+        format!("手动内存优化完成：{cleaned}/{scanned} 步骤成功，{failed} 步骤失败，共释放 {freed}（详细日志见 latest.log）")
+    }
 }
 
 pub fn memory_auto_cleanup_triggered(
@@ -350,9 +364,12 @@ pub fn memory_auto_cleanup_triggered(
     reclaimed_bytes: u64,
 ) -> String {
     let interval = format_memory_interval(interval_value, interval_unit);
-    format!(
-        "定时自动清理内存（间隔 {interval}）：扫描={scanned}，成功={cleaned}，失败={failed}，释放字节={reclaimed_bytes}"
-    )
+    let freed = format_reclaimed(reclaimed_bytes);
+    if failed == 0 {
+        format!("定时内存优化（间隔 {interval}）：{cleaned}/{scanned} 步骤全部成功，共释放 {freed}")
+    } else {
+        format!("定时内存优化（间隔 {interval}）：{cleaned}/{scanned} 步骤成功，{failed} 步骤失败，共释放 {freed}")
+    }
 }
 
 fn format_cache_selections(options: &CacheCleanupOptions) -> String {

@@ -495,12 +495,16 @@ if (Test-Path '{backup_escaped}') {{ Remove-Item '{backup_escaped}' -Force -Erro
 }
 
 #[tauri::command]
-fn cleanup_memory(
+async fn cleanup_memory(
     request: Option<MemoryCleanupRequest>,
     state: State<'_, AppState>,
 ) -> Result<MemoryCleanupReport, String> {
     let request = request.unwrap_or_default();
-    let report = memory_ops::cleanup_system_memory()?;
+    // NT 系统调用（EmptyWorkingSets / PurgeStandbyList 等）耗时较长且为阻塞操作，
+    // 用 spawn_blocking 放到专用线程池执行，避免阻塞 Tauri 异步运行时导致窗口未响应。
+    let report = tokio::task::spawn_blocking(memory_ops::cleanup_system_memory)
+        .await
+        .map_err(|error| format!("内存优化任务异常：{error}"))??;
 
     let message = if request.auto_trigger {
         let interval_value = request.interval_value.unwrap_or(0);
