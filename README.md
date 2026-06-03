@@ -4,6 +4,8 @@
   <img src="https://raw.githubusercontent.com/SmailPang/SkiHide/refs/heads/main/icon.ico" alt="SkiHide Logo" width="180">
 </p>
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/SmailPang/SkiHide)
+
 **SkiHide** 是一款专为 Windows 设计的桌面窗口管理工具，  
 通过快捷键或鼠标侧键，一键隐藏 / 恢复指定窗口，  
 适合 **双屏用户、游戏玩家、演示场景、~摸鱼~（划掉）高效办公** 等使用场景。
