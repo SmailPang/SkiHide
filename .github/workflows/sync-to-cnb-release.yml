@@ -6,56 +6,126 @@ on:
     types:
       - completed
 
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要同步的 GitHub Release Tag，例如 2.0.1 或 v2.0.1"
+        required: true
+        type: string
+
 permissions:
-  actions: read
   contents: read
+  actions: read
 
 jobs:
-  sync-cnb:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+  sync-to-cnb:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
 
     steps:
-      - name: Show workflow info
+      - name: Install tools
         run: |
-          echo "Triggered by workflow: ${{ github.event.workflow_run.name }}"
-          echo "Run ID: ${{ github.event.workflow_run.id }}"
-          echo "Head branch: ${{ github.event.workflow_run.head_branch }}"
-          echo "Head SHA: ${{ github.event.workflow_run.head_sha }}"
+          sudo apt-get update
+          sudo apt-get install -y jq curl
 
-      - name: Download artifacts from Build workflow
+      - name: Determine release tag
+        id: tag
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          mkdir -p cnb_upload
-          gh run download ${{ github.event.workflow_run.id }} \
-            -n release-files \
-            -D cnb_upload
+          set -e
 
-          echo "Downloaded files:"
-          find cnb_upload -type f -maxdepth 2 -print
-
-      - name: Get tag name
-        id: tag
-        shell: bash
-        run: |
-          REF_NAME="${{ github.event.workflow_run.head_branch }}"
-
-          echo "head_branch=$REF_NAME"
-
-          # 如果你的 Build 是 tag 触发，这里通常能拿到 tag 名
-          if [[ "$REF_NAME" == v* ]]; then
-            TAG="$REF_NAME"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+            echo "Manual trigger tag: $TAG"
           else
-            # 如果不是 tag 触发，就用短 commit 作为兜底版本号
-            TAG="build-${{ github.event.workflow_run.head_sha }}"
-            TAG="${TAG:0:18}"
+            echo "Auto trigger from workflow_run"
+
+            gh release list \
+              --repo "$GH_REPO" \
+              --limit 100 \
+              --json tagName,name,isLatest,isPrerelease,isDraft,publishedAt \
+              > releases.json
+
+            TAG="$(jq -r '.[0].tagName' releases.json)"
+
+            if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+              echo "No release found"
+              exit 1
+            fi
+
+            echo "Auto detected tag: $TAG"
           fi
 
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "CNB release tag: $TAG"
 
-      - name: Upload files to CNB Release
+      - name: Get GitHub Release info
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -e
+
+          TAG="${{ steps.tag.outputs.tag }}"
+
+          echo "Get GitHub release info: $TAG"
+
+          gh release view "$TAG" \
+            --repo "$GH_REPO" \
+            --json tagName,name,body,url,assets,tarballUrl,zipballUrl,isPrerelease,isDraft \
+            > release.json
+
+          jq -r '.name // .tagName' release.json > release-name.txt
+          jq -r '.body // ""' release.json > release-body.md
+          jq -r '.zipballUrl' release.json > source-zip-url.txt
+          jq -r '.tarballUrl' release.json > source-tar-url.txt
+
+          echo "Release name:"
+          cat release-name.txt
+
+          echo "Release body:"
+          cat release-body.md
+
+      - name: Download GitHub Release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -e
+
+          TAG="${{ steps.tag.outputs.tag }}"
+
+          mkdir -p cnb_upload
+
+          echo "Download GitHub Release assets..."
+          gh release download "$TAG" \
+            --repo "$GH_REPO" \
+            --dir cnb_upload \
+            --clobber
+
+          echo "Downloaded assets:"
+          find cnb_upload -type f -print
+
+      - name: Download GitHub source archives
+        run: |
+          set -e
+
+          TAG="${{ steps.tag.outputs.tag }}"
+
+          ZIP_URL="$(cat source-zip-url.txt)"
+          TAR_URL="$(cat source-tar-url.txt)"
+
+          echo "Download source code zip..."
+          curl -L "$ZIP_URL" -o "cnb_upload/Source code (zip).zip"
+
+          echo "Download source code tar.gz..."
+          curl -L "$TAR_URL" -o "cnb_upload/Source code (tar.gz).tar.gz"
+
+          echo "Final upload files:"
+          find cnb_upload -type f -print
+
+      - name: Create CNB Release
         uses: docker://docker.cnb.cool/looc/git-cnb:latest
         env:
           CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
@@ -64,13 +134,37 @@ jobs:
             sh -c '
               set -e
 
-              echo "Upload to CNB repo: ${{ secrets.CNB_REPO }}"
-              echo "Release tag: ${{ steps.tag.outputs.tag }}"
+              TAG="${{ steps.tag.outputs.tag }}"
+              NAME="$(cat release-name.txt)"
 
-              for file in cnb_upload/*; do
-                if [ -f "$file" ]; then
-                  echo "Uploading $file"
-                  git-cnb --repo=${{ secrets.CNB_REPO }} release asset-upload -t ${{ steps.tag.outputs.tag }} -f "$file"
-                fi
+              echo "Create CNB release"
+              echo "Repo: ${{ secrets.CNB_REPO }}"
+              echo "Tag: $TAG"
+              echo "Name: $NAME"
+
+              git-cnb --repo=${{ secrets.CNB_REPO }} release create \
+                -t "$TAG" \
+                -n "$NAME" \
+                -d release-body.md || true
+            '
+
+      - name: Upload assets to CNB Release
+        uses: docker://docker.cnb.cool/looc/git-cnb:latest
+        env:
+          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
+        with:
+          args: |
+            sh -c '
+              set -e
+
+              TAG="${{ steps.tag.outputs.tag }}"
+
+              echo "Upload assets to CNB release: $TAG"
+
+              find cnb_upload -type f | while read file; do
+                echo "Uploading: $file"
+                git-cnb --repo=${{ secrets.CNB_REPO }} release asset-upload \
+                  -t "$TAG" \
+                  -f "$file"
               done
             '
