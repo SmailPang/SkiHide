@@ -75,7 +75,7 @@ jobs:
 
           gh release view "$TAG" \
             --repo "$GH_REPO" \
-            --json tagName,name,body,targetCommitish \
+            --json tagName,name,body,targetCommitish,zipballUrl,tarballUrl \
             > release.json
 
           RELEASE_NAME="$(jq -r '.name // .tagName' release.json)"
@@ -116,11 +116,17 @@ jobs:
           ZIP_URL="$(jq -r '.zipballUrl' release.json)"
           TAR_URL="$(jq -r '.tarballUrl' release.json)"
 
+          if [ -z "$ZIP_URL" ] || [ "$ZIP_URL" = "null" ] ||
+             [ -z "$TAR_URL" ] || [ "$TAR_URL" = "null" ]; then
+            echo "GitHub release source archive URLs are missing"
+            exit 1
+          fi
+
           echo "Download source code zip..."
-          curl -L "$ZIP_URL" -o "cnb_upload/Source-code.zip"
+          curl --fail --location --show-error "$ZIP_URL" -o "cnb_upload/Source-code.zip"
 
           echo "Download source code tar.gz..."
-          curl -L "$TAR_URL" -o "cnb_upload/Source-code.tar.gz"
+          curl --fail --location --show-error "$TAR_URL" -o "cnb_upload/Source-code.tar.gz"
 
           echo "Final upload files:"
           find cnb_upload -type f -print
