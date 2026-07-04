@@ -84,7 +84,7 @@ jobs:
           echo "release_name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
           
           echo "Release name: $RELEASE_NAME"
-          echo "Release body: $RELEASE_BODY"
+          echo "Release body (first 200 chars): ${RELEASE_BODY:0:200}"
 
       - name: Download GitHub Release assets
         env:
@@ -148,18 +148,32 @@ jobs:
                       'Accept': 'application/json',
                       'Authorization': f'Bearer {token}',
                       'Content-Type': 'application/json',
+                      'User-Agent': 'CNB-Release-Uploader/1.0.0',
                       'Host': 'api.cnb.cool',
                       'Connection': 'keep-alive'
                   }
 
               def create_release(self, project_path, release_data):
                   url = f"{self.base_url}/{project_path}/-/releases"
+                  
+                  print(f"\n📋 创建 Release 请求:")
+                  print(f"   URL: {url}")
+                  print(f"   数据: {json.dumps(release_data, indent=2, ensure_ascii=False)}")
+                  
                   try:
                       response = requests.post(url, headers=self.headers, json=release_data)
+                      
+                      print(f"   响应状态码: {response.status_code}")
+                      
+                      if response.status_code == 409:
+                          print(f"⚠️  Release 已存在，尝试获取现有 release")
+                          return self.get_release(project_path, release_data['tag_name'])
+                      
                       response.raise_for_status()
                       release_info = response.json()
                       print(f"✅ Release创建成功: {release_info.get('name')}")
                       return release_info
+                      
                   except requests.exceptions.RequestException as e:
                       print(f"❌ 创建release失败: {e}")
                       if hasattr(e, 'response') and e.response:
@@ -167,15 +181,27 @@ jobs:
                           print(f"   响应: {e.response.text}")
                       return None
 
+              def get_release(self, project_path, tag_name):
+                  url = f"{self.base_url}/{project_path}/-/releases/tags/{tag_name}"
+                  try:
+                      response = requests.get(url, headers=self.headers)
+                      response.raise_for_status()
+                      return response.json()
+                  except:
+                      return None
+
               def get_upload_url(self, project_path, release_id, asset_name, file_size):
                   url = f"{self.base_url}/{project_path}/-/releases/{release_id}/asset-upload-url"
                   data = {"asset_name": asset_name, "overwrite": True, "size": file_size}
+                  
                   try:
                       response = requests.post(url, headers=self.headers, json=data)
                       response.raise_for_status()
                       return response.json()
                   except requests.exceptions.RequestException as e:
                       print(f"❌ 获取上传URL失败 ({asset_name}): {e}")
+                      if hasattr(e, 'response') and e.response:
+                          print(f"   响应: {e.response.text}")
                       return None
 
               def upload_file(self, upload_url, file_path):
@@ -205,6 +231,8 @@ jobs:
                               return True
                           except requests.exceptions.RequestException as e:
                               print(f"❌ 上传失败 ({file_name}): {e}")
+                              if hasattr(e, 'response') and e.response:
+                                  print(f"   响应: {e.response.text}")
                               return False
 
           def main():
@@ -213,7 +241,7 @@ jobs:
               tag = os.environ['RELEASE_TAG']
               name = os.environ.get('RELEASE_NAME', tag)
               
-              with open('release.json', 'r') as f:
+              with open('release.json', 'r', encoding='utf-8') as f:
                   release_data = json.load(f)
               
               body = release_data.get('body', '')
@@ -221,6 +249,7 @@ jobs:
               uploader = CNBUploader(token)
               
               # 创建 release
+              print(f"\n🚀 开始同步 Release: {name} ({tag})")
               release_info = uploader.create_release(repo, {
                   'tag_name': tag,
                   'name': name,
@@ -228,26 +257,42 @@ jobs:
               })
               
               if not release_info:
+                  print("❌ 无法创建或获取 release")
                   sys.exit(1)
               
-              release_id = release_info['id']
+              release_id = release_info.get('id')
+              if not release_id:
+                  print("❌ 无法获取 release ID")
+                  sys.exit(1)
+              
+              print(f"✅ Release ID: {release_id}")
               
               # 上传文件
               upload_dir = Path('cnb_upload')
-              files = list(upload_dir.glob('*'))
+              files = sorted([f for f in upload_dir.glob('*') if f.is_file()])
+              
+              if not files:
+                  print("⚠️  没有文件需要上传")
+                  return 0
+              
+              print(f"\n📦 准备上传 {len(files)} 个文件")
               
               success = 0
-              for file_path in files:
-                  if file_path.is_file():
-                      file_size = file_path.stat().st_size
-                      asset_name = file_path.name
-                      
-                      upload_info = uploader.get_upload_url(repo, release_id, asset_name, file_size)
-                      if upload_info and 'upload_url' in upload_info:
-                          if uploader.upload_file(upload_info['upload_url'], str(file_path)):
-                              success += 1
+              for i, file_path in enumerate(files, 1):
+                  file_size = file_path.stat().st_size
+                  asset_name = file_path.name
+                  
+                  print(f"\n[{i}/{len(files)}] 处理: {asset_name} ({file_size:,} bytes)")
+                  
+                  upload_info = uploader.get_upload_url(repo, release_id, asset_name, file_size)
+                  if upload_info and 'upload_url' in upload_info:
+                      if uploader.upload_file(upload_info['upload_url'], str(file_path)):
+                          success += 1
               
-              print(f"\n🎉 完成! 成功上传 {success}/{len(files)} 个文件")
+              print(f"\n{'='*50}")
+              print(f"🎉 完成! 成功上传 {success}/{len(files)} 个文件")
+              print(f"{'='*50}")
+              
               return 0 if success == len(files) else 1
 
           if __name__ == '__main__':
