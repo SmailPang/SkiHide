@@ -1,0 +1,76 @@
+name: Sync to CNB Release
+
+on:
+  workflow_run:
+    workflows: ["Build"]
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  sync-cnb:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Show workflow info
+        run: |
+          echo "Triggered by workflow: ${{ github.event.workflow_run.name }}"
+          echo "Run ID: ${{ github.event.workflow_run.id }}"
+          echo "Head branch: ${{ github.event.workflow_run.head_branch }}"
+          echo "Head SHA: ${{ github.event.workflow_run.head_sha }}"
+
+      - name: Download artifacts from Build workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p cnb_upload
+          gh run download ${{ github.event.workflow_run.id }} \
+            -n release-files \
+            -D cnb_upload
+
+          echo "Downloaded files:"
+          find cnb_upload -type f -maxdepth 2 -print
+
+      - name: Get tag name
+        id: tag
+        shell: bash
+        run: |
+          REF_NAME="${{ github.event.workflow_run.head_branch }}"
+
+          echo "head_branch=$REF_NAME"
+
+          # 如果你的 Build 是 tag 触发，这里通常能拿到 tag 名
+          if [[ "$REF_NAME" == v* ]]; then
+            TAG="$REF_NAME"
+          else
+            # 如果不是 tag 触发，就用短 commit 作为兜底版本号
+            TAG="build-${{ github.event.workflow_run.head_sha }}"
+            TAG="${TAG:0:18}"
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "CNB release tag: $TAG"
+
+      - name: Upload files to CNB Release
+        uses: docker://docker.cnb.cool/looc/git-cnb:latest
+        env:
+          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
+        with:
+          args: |
+            sh -c '
+              set -e
+
+              echo "Upload to CNB repo: ${{ secrets.CNB_REPO }}"
+              echo "Release tag: ${{ steps.tag.outputs.tag }}"
+
+              for file in cnb_upload/*; do
+                if [ -f "$file" ]; then
+                  echo "Uploading $file"
+                  git-cnb --repo=${{ secrets.CNB_REPO }} release asset-upload -t ${{ steps.tag.outputs.tag }} -f "$file"
+                fi
+              done
+            '
