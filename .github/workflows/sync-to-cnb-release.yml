@@ -134,7 +134,7 @@ jobs:
             sh -c "
             set -e;
             TAG='${{ steps.tag.outputs.tag }}';
-            NAME=\$(cat release-name.txt);
+            NAME=\$$(cat release-name.txt);
             echo 'Create CNB release';
             echo 'Repo: ${{ secrets.CNB_REPO }}';
             echo 'Tag: '\$TAG;
