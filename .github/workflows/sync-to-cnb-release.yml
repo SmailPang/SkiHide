@@ -23,10 +23,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install tools
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y jq curl
+          pip install requests tqdm
 
       - name: Determine release tag
         id: tag
@@ -61,6 +62,7 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Get GitHub Release info
+        id: release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -76,16 +78,13 @@ jobs:
             --json tagName,name,body,url,assets,tarballUrl,zipballUrl,isPrerelease,isDraft \
             > release.json
 
-          jq -r '.name // .tagName' release.json > release-name.txt
-          jq -r '.body // ""' release.json > release-body.md
-          jq -r '.zipballUrl' release.json > source-zip-url.txt
-          jq -r '.tarballUrl' release.json > source-tar-url.txt
+          RELEASE_NAME="$(jq -r '.name // .tagName' release.json)"
+          RELEASE_BODY="$(jq -r '.body // ""' release.json)"
 
-          echo "Release name:"
-          cat release-name.txt
-
-          echo "Release body:"
-          cat release-body.md
+          echo "release_name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
+          
+          echo "Release name: $RELEASE_NAME"
+          echo "Release body: $RELEASE_BODY"
 
       - name: Download GitHub Release assets
         env:
@@ -112,48 +111,147 @@ jobs:
           set -e
 
           TAG="${{ steps.tag.outputs.tag }}"
-
-          ZIP_URL="$(cat source-zip-url.txt)"
-          TAR_URL="$(cat source-tar-url.txt)"
+          
+          ZIP_URL="$(jq -r '.zipballUrl' release.json)"
+          TAR_URL="$(jq -r '.tarballUrl' release.json)"
 
           echo "Download source code zip..."
-          curl -L "$ZIP_URL" -o "cnb_upload/Source code (zip).zip"
+          curl -L "$ZIP_URL" -o "cnb_upload/Source-code.zip"
 
           echo "Download source code tar.gz..."
-          curl -L "$TAR_URL" -o "cnb_upload/Source code (tar.gz).tar.gz"
+          curl -L "$TAR_URL" -o "cnb_upload/Source-code.tar.gz"
 
           echo "Final upload files:"
           find cnb_upload -type f -print
 
-      - name: Create CNB Release
-        uses: docker://docker.cnb.cool/looc/git-cnb:latest
+      - name: Sync to CNB Release
         env:
           CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
-        with:
-          args: >-
-            sh -c "
-            set -e;
-            TAG=\"${{ steps.tag.outputs.tag }}\";
-            NAME=\$(cat release-name.txt);
-            echo \"Create CNB release\";
-            echo \"Repo: ${{ secrets.CNB_REPO }}\";
-            echo \"Tag: \$TAG\";
-            echo \"Name: \$NAME\";
-            git-cnb --repo=${{ secrets.CNB_REPO }} release create -t \"\$TAG\" -n \"\$NAME\" -d release-body.md || true
-            "
+          CNB_REPO: ${{ secrets.CNB_REPO }}
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+          RELEASE_NAME: ${{ steps.release.outputs.release_name }}
+        run: |
+          cat << 'EOF' > sync_cnb.py
+          #!/usr/bin/env python3
+          import os
+          import json
+          import requests
+          import sys
+          from pathlib import Path
+          from tqdm import tqdm
 
-      - name: Upload assets to CNB Release
-        uses: docker://docker.cnb.cool/looc/git-cnb:latest
-        env:
-          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
-        with:
-          args: >-
-            sh -c "
-            set -e;
-            TAG=\"${{ steps.tag.outputs.tag }}\";
-            echo \"Upload assets to CNB release: \$TAG\";
-            find cnb_upload -type f | while read file; do
-              echo \"Uploading: \$file\";
-              git-cnb --repo=${{ secrets.CNB_REPO }} release asset-upload -t \"\$TAG\" -f \"\$file\";
-            done
-            "
+          class CNBUploader:
+              def __init__(self, token, base_url="https://api.cnb.cool"):
+                  self.token = token
+                  self.base_url = base_url
+                  self.headers = {
+                      'Accept': 'application/json',
+                      'Authorization': f'Bearer {token}',
+                      'Content-Type': 'application/json',
+                      'Host': 'api.cnb.cool',
+                      'Connection': 'keep-alive'
+                  }
+
+              def create_release(self, project_path, release_data):
+                  url = f"{self.base_url}/{project_path}/-/releases"
+                  try:
+                      response = requests.post(url, headers=self.headers, json=release_data)
+                      response.raise_for_status()
+                      release_info = response.json()
+                      print(f"✅ Release创建成功: {release_info.get('name')}")
+                      return release_info
+                  except requests.exceptions.RequestException as e:
+                      print(f"❌ 创建release失败: {e}")
+                      if hasattr(e, 'response') and e.response:
+                          print(f"   状态码: {e.response.status_code}")
+                          print(f"   响应: {e.response.text}")
+                      return None
+
+              def get_upload_url(self, project_path, release_id, asset_name, file_size):
+                  url = f"{self.base_url}/{project_path}/-/releases/{release_id}/asset-upload-url"
+                  data = {"asset_name": asset_name, "overwrite": True, "size": file_size}
+                  try:
+                      response = requests.post(url, headers=self.headers, json=data)
+                      response.raise_for_status()
+                      return response.json()
+                  except requests.exceptions.RequestException as e:
+                      print(f"❌ 获取上传URL失败 ({asset_name}): {e}")
+                      return None
+
+              def upload_file(self, upload_url, file_path):
+                  file_size = os.path.getsize(file_path)
+                  file_name = os.path.basename(file_path)
+                  
+                  upload_headers = {
+                      'Accept': 'application/json',
+                      'Authorization': f'Bearer {self.token}',
+                  }
+                  
+                  with open(file_path, 'rb') as f:
+                      with tqdm(total=file_size, unit='B', unit_scale=True, desc=f"📤 {file_name}") as pbar:
+                          class TqdmUpload:
+                              def __init__(self, file, pbar):
+                                  self.file = file
+                                  self.pbar = pbar
+                              def read(self, size=-1):
+                                  data = self.file.read(size)
+                                  self.pbar.update(len(data))
+                                  return data
+                          
+                          try:
+                              response = requests.put(upload_url, headers=upload_headers, data=TqdmUpload(f, pbar))
+                              response.raise_for_status()
+                              print(f"✅ 上传成功: {file_name}")
+                              return True
+                          except requests.exceptions.RequestException as e:
+                              print(f"❌ 上传失败 ({file_name}): {e}")
+                              return False
+
+          def main():
+              token = os.environ['CNB_TOKEN']
+              repo = os.environ['CNB_REPO']
+              tag = os.environ['RELEASE_TAG']
+              name = os.environ.get('RELEASE_NAME', tag)
+              
+              with open('release.json', 'r') as f:
+                  release_data = json.load(f)
+              
+              body = release_data.get('body', '')
+              
+              uploader = CNBUploader(token)
+              
+              # 创建 release
+              release_info = uploader.create_release(repo, {
+                  'tag_name': tag,
+                  'name': name,
+                  'description': body
+              })
+              
+              if not release_info:
+                  sys.exit(1)
+              
+              release_id = release_info['id']
+              
+              # 上传文件
+              upload_dir = Path('cnb_upload')
+              files = list(upload_dir.glob('*'))
+              
+              success = 0
+              for file_path in files:
+                  if file_path.is_file():
+                      file_size = file_path.stat().st_size
+                      asset_name = file_path.name
+                      
+                      upload_info = uploader.get_upload_url(repo, release_id, asset_name, file_size)
+                      if upload_info and 'upload_url' in upload_info:
+                          if uploader.upload_file(upload_info['upload_url'], str(file_path)):
+                              success += 1
+              
+              print(f"\n🎉 完成! 成功上传 {success}/{len(files)} 个文件")
+              return 0 if success == len(files) else 1
+
+          if __name__ == '__main__':
+              sys.exit(main())
+          EOF
+
+          python3 sync_cnb.py
