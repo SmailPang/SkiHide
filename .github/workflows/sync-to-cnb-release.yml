@@ -75,16 +75,17 @@ jobs:
 
           gh release view "$TAG" \
             --repo "$GH_REPO" \
-            --json tagName,name,body,url,assets,tarballUrl,zipballUrl,isPrerelease,isDraft \
+            --json tagName,name,body,targetCommitish \
             > release.json
 
           RELEASE_NAME="$(jq -r '.name // .tagName' release.json)"
-          RELEASE_BODY="$(jq -r '.body // ""' release.json)"
+          TARGET_COMMITISH="$(jq -r '.targetCommitish // \"main\"' release.json)"
 
           echo "release_name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
+          echo "target_commitish=$TARGET_COMMITISH" >> "$GITHUB_OUTPUT"
           
           echo "Release name: $RELEASE_NAME"
-          echo "Release body (first 200 chars): ${RELEASE_BODY:0:200}"
+          echo "Target commitish: $TARGET_COMMITISH"
 
       - name: Download GitHub Release assets
         env:
@@ -130,6 +131,7 @@ jobs:
           CNB_REPO: ${{ secrets.CNB_REPO }}
           RELEASE_TAG: ${{ steps.tag.outputs.tag }}
           RELEASE_NAME: ${{ steps.release.outputs.release_name }}
+          TARGET_COMMITISH: ${{ steps.release.outputs.target_commitish }}
         run: |
           cat << 'EOF' > sync_cnb.py
           #!/usr/bin/env python3
@@ -240,6 +242,7 @@ jobs:
               repo = os.environ['CNB_REPO']
               tag = os.environ['RELEASE_TAG']
               name = os.environ.get('RELEASE_NAME', tag)
+              target_commitish = os.environ.get('TARGET_COMMITISH', 'main')
               
               with open('release.json', 'r', encoding='utf-8') as f:
                   release_data = json.load(f)
@@ -248,12 +251,13 @@ jobs:
               
               uploader = CNBUploader(token)
               
-              # 创建 release
+              # 创建 release（必须包含 target_commitish）
               print(f"\n🚀 开始同步 Release: {name} ({tag})")
               release_info = uploader.create_release(repo, {
                   'tag_name': tag,
                   'name': name,
-                  'description': body
+                  'description': body,
+                  'target_commitish': target_commitish
               })
               
               if not release_info:
@@ -300,3 +304,4 @@ jobs:
           EOF
 
           python3 sync_cnb.py
+
