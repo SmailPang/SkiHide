@@ -133,13 +133,13 @@ jobs:
           args: >-
             sh -c "
             set -e;
-            TAG='${{ steps.tag.outputs.tag }}';
-            NAME=\$$(cat release-name.txt);
-            echo 'Create CNB release';
-            echo 'Repo: ${{ secrets.CNB_REPO }}';
-            echo 'Tag: '\$TAG;
-            echo 'Name: '\$NAME;
-            git-cnb --repo=${{ secrets.CNB_REPO }} release create -t \$TAG -n \$NAME -d release-body.md || true
+            TAG=\"${{ steps.tag.outputs.tag }}\";
+            NAME=\$(cat release-name.txt);
+            echo \"Create CNB release\";
+            echo \"Repo: ${{ secrets.CNB_REPO }}\";
+            echo \"Tag: \$TAG\";
+            echo \"Name: \$NAME\";
+            git-cnb --repo=${{ secrets.CNB_REPO }} release create -t \"\$TAG\" -n \"\$NAME\" -d release-body.md || true
             "
 
       - name: Upload assets to CNB Release
@@ -150,10 +150,10 @@ jobs:
           args: >-
             sh -c "
             set -e;
-            TAG='${{ steps.tag.outputs.tag }}';
-            echo 'Upload assets to CNB release: '\$TAG;
+            TAG=\"${{ steps.tag.outputs.tag }}\";
+            echo \"Upload assets to CNB release: \$TAG\";
             find cnb_upload -type f | while read file; do
-              echo 'Uploading: '\$file;
-              git-cnb --repo=${{ secrets.CNB_REPO }} release asset-upload -t \$TAG -f \$file;
+              echo \"Uploading: \$file\";
+              git-cnb --repo=${{ secrets.CNB_REPO }} release asset-upload -t \"\$TAG\" -f \"\$file\";
             done
             "
