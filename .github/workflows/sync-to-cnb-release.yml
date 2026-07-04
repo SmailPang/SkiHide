@@ -79,7 +79,7 @@ jobs:
             > release.json
 
           RELEASE_NAME="$(jq -r '.name // .tagName' release.json)"
-          TARGET_COMMITISH="$(jq -r '.targetCommitish // \"main\"' release.json)"
+          TARGET_COMMITISH="$(jq -r '.targetCommitish // "main"' release.json)"
 
           echo "release_name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
           echo "target_commitish=$TARGET_COMMITISH" >> "$GITHUB_OUTPUT"
@@ -304,4 +304,5 @@ jobs:
           EOF
 
           python3 sync_cnb.py
+
 
