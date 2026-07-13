@@ -1,8 +1,10 @@
 name: Sync to CNB Release
 
+run-name: Sync GitHub Release ${{ inputs.tag || github.event.workflow_run.head_branch }} to CNB
+
 on:
   workflow_run:
-    workflows: ["Build"]
+    workflows: ["Build (Releases)"]
     types:
       - completed
 
@@ -43,20 +45,14 @@ jobs:
           else
             echo "Auto trigger from workflow_run"
 
-            gh release list \
-              --repo "$GH_REPO" \
-              --limit 100 \
-              --json tagName,name,isLatest,isPrerelease,isDraft,publishedAt \
-              > releases.json
-
-            TAG="$(jq -r '.[0].tagName' releases.json)"
+            TAG="${{ github.event.workflow_run.head_branch }}"
 
             if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
-              echo "No release found"
+              echo "The completed Build (Releases) run did not provide a release tag"
               exit 1
             fi
 
-            echo "Auto detected tag: $TAG"
+            echo "Release tag from completed Build (Releases) run: $TAG"
           fi
 
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
@@ -75,14 +71,18 @@ jobs:
 
           gh release view "$TAG" \
             --repo "$GH_REPO" \
-            --json tagName,name,body,targetCommitish,zipballUrl,tarballUrl \
+            --json tagName,name,body,targetCommitish,zipballUrl,tarballUrl,isPrerelease,isDraft \
             > release.json
 
           RELEASE_NAME="$(jq -r '.name // .tagName' release.json)"
           TARGET_COMMITISH="$(jq -r '.targetCommitish // "main"' release.json)"
+          IS_PRERELEASE="$(jq -r '.isPrerelease // false' release.json)"
+          IS_DRAFT="$(jq -r '.isDraft // false' release.json)"
 
           echo "release_name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
           echo "target_commitish=$TARGET_COMMITISH" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "is_draft=$IS_DRAFT" >> "$GITHUB_OUTPUT"
           
           echo "Release name: $RELEASE_NAME"
           echo "Target commitish: $TARGET_COMMITISH"
@@ -123,10 +123,10 @@ jobs:
           fi
 
           echo "Download source code zip..."
-          curl --fail --location --show-error "$ZIP_URL" -o "cnb_upload/Source-code.zip"
+          curl --fail --location --show-error "$ZIP_URL" -o "cnb_upload/SkiHide-$TAG-source.zip"
 
           echo "Download source code tar.gz..."
-          curl --fail --location --show-error "$TAR_URL" -o "cnb_upload/Source-code.tar.gz"
+          curl --fail --location --show-error "$TAR_URL" -o "cnb_upload/SkiHide-$TAG-source.tar.gz"
 
           echo "Final upload files:"
           find cnb_upload -type f -print
@@ -138,6 +138,8 @@ jobs:
           RELEASE_TAG: ${{ steps.tag.outputs.tag }}
           RELEASE_NAME: ${{ steps.release.outputs.release_name }}
           TARGET_COMMITISH: ${{ steps.release.outputs.target_commitish }}
+          RELEASE_PRERELEASE: ${{ steps.release.outputs.is_prerelease }}
+          RELEASE_DRAFT: ${{ steps.release.outputs.is_draft }}
         run: |
           cat << 'EOF' > sync_cnb.py
           #!/usr/bin/env python3
@@ -153,12 +155,10 @@ jobs:
                   self.token = token
                   self.base_url = base_url
                   self.headers = {
-                      'Accept': 'application/json',
+                      'Accept': 'application/vnd.cnb.api+json',
                       'Authorization': f'Bearer {token}',
                       'Content-Type': 'application/json',
                       'User-Agent': 'CNB-Release-Uploader/1.0.0',
-                      'Host': 'api.cnb.cool',
-                      'Connection': 'keep-alive'
                   }
 
               def create_release(self, project_path, release_data):
@@ -174,8 +174,16 @@ jobs:
                       print(f"   响应状态码: {response.status_code}")
                       
                       if response.status_code == 409:
-                          print(f"⚠️  Release 已存在，尝试获取现有 release")
-                          return self.get_release(project_path, release_data['tag_name'])
+                          print(f"⚠️  Release 已存在，更新现有 Release 的标题和说明")
+                          existing = self.get_release(project_path, release_data['tag_name'])
+                          if not existing:
+                              return None
+                          return self.update_release(project_path, existing['id'], {
+                              'name': release_data['name'],
+                              'body': release_data['body'],
+                              'draft': release_data['draft'],
+                              'prerelease': release_data['prerelease'],
+                          })
                       
                       response.raise_for_status()
                       release_info = response.json()
@@ -195,12 +203,28 @@ jobs:
                       response = requests.get(url, headers=self.headers)
                       response.raise_for_status()
                       return response.json()
-                  except:
+                  except requests.exceptions.RequestException as e:
+                      print(f"❌ 获取 Release 失败: {e}")
+                      if e.response is not None:
+                          print(f"   响应: {e.response.text}")
+                      return None
+
+              def update_release(self, project_path, release_id, release_data):
+                  url = f"{self.base_url}/{project_path}/-/releases/{release_id}"
+                  try:
+                      response = requests.patch(url, headers=self.headers, json=release_data)
+                      response.raise_for_status()
+                      print("✅ Release 标题和说明已更新")
+                      return self.get_release(project_path, release_data.get('tag_name', os.environ['RELEASE_TAG']))
+                  except requests.exceptions.RequestException as e:
+                      print(f"❌ 更新 Release 失败: {e}")
+                      if e.response is not None:
+                          print(f"   响应: {e.response.text}")
                       return None
 
               def get_upload_url(self, project_path, release_id, asset_name, file_size):
                   url = f"{self.base_url}/{project_path}/-/releases/{release_id}/asset-upload-url"
-                  data = {"asset_name": asset_name, "overwrite": True, "size": file_size}
+                  data = {"asset_name": asset_name, "overwrite": True, "size": file_size, "ttl": 0}
                   
                   try:
                       response = requests.post(url, headers=self.headers, json=data)
@@ -212,34 +236,51 @@ jobs:
                           print(f"   响应: {e.response.text}")
                       return None
 
-              def upload_file(self, upload_url, file_path):
+              def upload_file(self, upload_info, file_path):
                   file_size = os.path.getsize(file_path)
                   file_name = os.path.basename(file_path)
-                  
-                  upload_headers = {
-                      'Accept': 'application/json',
-                      'Authorization': f'Bearer {self.token}',
-                  }
+                  upload_url = upload_info['upload_url']
+                  verify_url = upload_info.get('verify_url')
+
+                  if not verify_url:
+                      print(f"❌ CNB 未返回附件确认地址 ({file_name})")
+                      return False
                   
                   with open(file_path, 'rb') as f:
                       with tqdm(total=file_size, unit='B', unit_scale=True, desc=f"📤 {file_name}") as pbar:
                           class TqdmUpload:
-                              def __init__(self, file, pbar):
+                              def __init__(self, file, pbar, size):
                                   self.file = file
                                   self.pbar = pbar
+                                  self.size = size
                               def read(self, size=-1):
                                   data = self.file.read(size)
                                   self.pbar.update(len(data))
                                   return data
+                              def __len__(self):
+                                  return self.size
                           
                           try:
-                              response = requests.put(upload_url, headers=upload_headers, data=TqdmUpload(f, pbar))
+                              response = requests.put(
+                                  upload_url,
+                                  headers={
+                                      'Content-Type': 'application/octet-stream',
+                                      'Content-Length': str(file_size),
+                                  },
+                                  data=TqdmUpload(f, pbar, file_size),
+                              )
                               response.raise_for_status()
-                              print(f"✅ 上传成功: {file_name}")
+
+                              if verify_url.startswith('/'):
+                                  verify_url = f"{self.base_url}{verify_url}"
+
+                              confirm = requests.post(verify_url, headers=self.headers)
+                              confirm.raise_for_status()
+                              print(f"✅ 上传并确认成功: {file_name}")
                               return True
                           except requests.exceptions.RequestException as e:
                               print(f"❌ 上传失败 ({file_name}): {e}")
-                              if hasattr(e, 'response') and e.response:
+                              if e.response is not None:
                                   print(f"   响应: {e.response.text}")
                               return False
 
@@ -249,6 +290,8 @@ jobs:
               tag = os.environ['RELEASE_TAG']
               name = os.environ.get('RELEASE_NAME', tag)
               target_commitish = os.environ.get('TARGET_COMMITISH', 'main')
+              prerelease = os.environ.get('RELEASE_PRERELEASE', 'false').lower() == 'true'
+              draft = os.environ.get('RELEASE_DRAFT', 'false').lower() == 'true'
               
               with open('release.json', 'r', encoding='utf-8') as f:
                   release_data = json.load(f)
@@ -262,8 +305,10 @@ jobs:
               release_info = uploader.create_release(repo, {
                   'tag_name': tag,
                   'name': name,
-                  'description': body,
-                  'target_commitish': target_commitish
+                  'body': body,
+                  'target_commitish': target_commitish,
+                  'prerelease': prerelease,
+                  'draft': draft,
               })
               
               if not release_info:
@@ -295,12 +340,26 @@ jobs:
                   print(f"\n[{i}/{len(files)}] 处理: {asset_name} ({file_size:,} bytes)")
                   
                   upload_info = uploader.get_upload_url(repo, release_id, asset_name, file_size)
-                  if upload_info and 'upload_url' in upload_info:
-                      if uploader.upload_file(upload_info['upload_url'], str(file_path)):
+                  if upload_info and 'upload_url' in upload_info and 'verify_url' in upload_info:
+                      if uploader.upload_file(upload_info, str(file_path)):
                           success += 1
+                  else:
+                      print(f"❌ CNB 未返回完整的上传信息: {asset_name}")
+
+              visible_release = uploader.get_release(repo, tag)
+              visible_assets = {
+                  asset.get('name')
+                  for asset in (visible_release or {}).get('assets', [])
+              }
+              expected_assets = {file_path.name for file_path in files}
+              missing_assets = sorted(expected_assets - visible_assets)
+
+              if missing_assets:
+                  print(f"❌ 以下附件上传后仍未出现在 CNB Release: {', '.join(missing_assets)}")
+                  return 1
               
               print(f"\n{'='*50}")
-              print(f"🎉 完成! 成功上传 {success}/{len(files)} 个文件")
+              print(f"🎉 完成! 成功上传并确认 {success}/{len(files)} 个文件")
               print(f"{'='*50}")
               
               return 0 if success == len(files) else 1
