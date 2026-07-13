@@ -332,7 +332,10 @@ function closeUpdateDialog() {
 
 async function runImmediateUpdate() {
   if (updateInProgress.value) return;
-  if (!updateDownloadUrl.value && updateDownloadCandidates.value.length === 0) {
+  const useMirrorDownload =
+    settings.updateSource.value === 'mirror_chan' && settings.downloadSource.value === 'mirror_chan';
+
+  if (!useMirrorDownload && !updateDownloadUrl.value && updateDownloadCandidates.value.length === 0) {
     await openUpdateDialog();
     if (!updateDownloadUrl.value && updateDownloadCandidates.value.length === 0) {
       notify({ title: t('updateDialog.updateNow'), content: '当前没有可用下载链接', type: 'warn' });
@@ -345,10 +348,14 @@ async function runImmediateUpdate() {
   updateClosePromptOpen.value = false;
 
   try {
-    let urls = updateDownloadCandidates.value.length > 0 ? [...updateDownloadCandidates.value] : [updateDownloadUrl.value];
+    let urls = updateDownloadCandidates.value.length > 0
+      ? [...updateDownloadCandidates.value]
+      : updateDownloadUrl.value
+        ? [updateDownloadUrl.value]
+        : [];
     let expectedSha = updateExpectedSha256.value || null;
 
-    if (settings.updateSource.value === 'mirror_chan' && settings.downloadSource.value === 'mirror_chan') {
+    if (useMirrorDownload) {
       const mirrorInfo = await invoke<MirrorDownloadInfo>('resolve_mirror_download_url');
       if (mirrorInfo.mirror_code !== null) {
         notify({ title: t('updateDialog.updateNow'), content: mapMirrorError(mirrorInfo.mirror_code, mirrorInfo.mirror_message), type: 'warn' });
