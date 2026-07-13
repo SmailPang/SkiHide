@@ -148,18 +148,46 @@ jobs:
           import requests
           import sys
           from pathlib import Path
+          from requests.adapters import HTTPAdapter
           from tqdm import tqdm
+          from urllib3.util.retry import Retry
 
           class CNBUploader:
               def __init__(self, token, base_url="https://api.cnb.cool"):
                   self.token = token
                   self.base_url = base_url
+                  self.api_timeout = (15, 120)
                   self.headers = {
                       'Accept': 'application/vnd.cnb.api+json',
                       'Authorization': f'Bearer {token}',
                       'Content-Type': 'application/json',
                       'User-Agent': 'CNB-Release-Uploader/1.0.0',
                   }
+                  retry_options = dict(
+                      total=4,
+                      connect=4,
+                      read=4,
+                      status=4,
+                      backoff_factor=2,
+                      status_forcelist=(429, 500, 502, 503, 504),
+                      respect_retry_after_header=True,
+                      raise_on_status=False,
+                  )
+                  retry_methods = frozenset({'GET', 'POST', 'PATCH'})
+                  try:
+                      retry_policy = Retry(
+                          allowed_methods=retry_methods,
+                          **retry_options,
+                      )
+                  except TypeError:
+                      # urllib3 < 1.26 uses method_whitelist instead.
+                      retry_policy = Retry(
+                          method_whitelist=retry_methods,
+                          **retry_options,
+                      )
+                  adapter = HTTPAdapter(max_retries=retry_policy)
+                  self.session = requests.Session()
+                  self.session.mount('https://', adapter)
 
               def create_release(self, project_path, release_data):
                   url = f"{self.base_url}/{project_path}/-/releases"
@@ -169,7 +197,12 @@ jobs:
                   print(f"   数据: {json.dumps(release_data, indent=2, ensure_ascii=False)}")
                   
                   try:
-                      response = requests.post(url, headers=self.headers, json=release_data)
+                      response = self.session.post(
+                          url,
+                          headers=self.headers,
+                          json=release_data,
+                          timeout=self.api_timeout,
+                      )
                       
                       print(f"   响应状态码: {response.status_code}")
                       
@@ -192,15 +225,30 @@ jobs:
                       
                   except requests.exceptions.RequestException as e:
                       print(f"❌ 创建release失败: {e}")
-                      if hasattr(e, 'response') and e.response:
+                      if e.response is not None:
                           print(f"   状态码: {e.response.status_code}")
                           print(f"   响应: {e.response.text}")
+
+                      print("🔎 创建请求异常，按 Tag 查询 CNB Release 状态...")
+                      existing = self.get_release(project_path, release_data['tag_name'])
+                      if existing:
+                          print("✅ 创建请求异常后检测到 Release 已存在，继续同步")
+                          return self.update_release(project_path, existing['id'], {
+                              'name': release_data['name'],
+                              'body': release_data['body'],
+                              'draft': release_data['draft'],
+                              'prerelease': release_data['prerelease'],
+                          })
                       return None
 
               def get_release(self, project_path, tag_name):
                   url = f"{self.base_url}/{project_path}/-/releases/tags/{tag_name}"
                   try:
-                      response = requests.get(url, headers=self.headers)
+                      response = self.session.get(
+                          url,
+                          headers=self.headers,
+                          timeout=self.api_timeout,
+                      )
                       response.raise_for_status()
                       return response.json()
                   except requests.exceptions.RequestException as e:
@@ -212,7 +260,12 @@ jobs:
               def update_release(self, project_path, release_id, release_data):
                   url = f"{self.base_url}/{project_path}/-/releases/{release_id}"
                   try:
-                      response = requests.patch(url, headers=self.headers, json=release_data)
+                      response = self.session.patch(
+                          url,
+                          headers=self.headers,
+                          json=release_data,
+                          timeout=self.api_timeout,
+                      )
                       response.raise_for_status()
                       print("✅ Release 标题和说明已更新")
                       return self.get_release(project_path, release_data.get('tag_name', os.environ['RELEASE_TAG']))
@@ -227,7 +280,12 @@ jobs:
                   data = {"asset_name": asset_name, "overwrite": True, "size": file_size, "ttl": 0}
                   
                   try:
-                      response = requests.post(url, headers=self.headers, json=data)
+                      response = self.session.post(
+                          url,
+                          headers=self.headers,
+                          json=data,
+                          timeout=self.api_timeout,
+                      )
                       response.raise_for_status()
                       return response.json()
                   except requests.exceptions.RequestException as e:
@@ -268,13 +326,18 @@ jobs:
                                       'Content-Length': str(file_size),
                                   },
                                   data=TqdmUpload(f, pbar, file_size),
+                                  timeout=(15, 300),
                               )
                               response.raise_for_status()
 
                               if verify_url.startswith('/'):
                                   verify_url = f"{self.base_url}{verify_url}"
 
-                              confirm = requests.post(verify_url, headers=self.headers)
+                              confirm = self.session.post(
+                                  verify_url,
+                                  headers=self.headers,
+                                  timeout=self.api_timeout,
+                              )
                               confirm.raise_for_status()
                               print(f"✅ 上传并确认成功: {file_name}")
                               return True
