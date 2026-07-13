@@ -1,12 +1,19 @@
 name: Sync to CNB Release
 
-run-name: Sync GitHub Release ${{ inputs.tag || github.event.workflow_run.head_branch }} to CNB
+run-name: Sync GitHub Release ${{ inputs.tag }} to CNB
 
 on:
-  workflow_run:
-    workflows: ["Build (Releases)"]
-    types:
-      - completed
+  workflow_call:
+    inputs:
+      tag:
+        description: "要同步的 GitHub Release Tag"
+        required: true
+        type: string
+    secrets:
+      CNB_TOKEN:
+        required: true
+      CNB_REPO:
+        required: true
 
   workflow_dispatch:
     inputs:
@@ -21,7 +28,6 @@ permissions:
 
 jobs:
   sync-to-cnb:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -39,21 +45,14 @@ jobs:
         run: |
           set -e
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.tag }}"
-            echo "Manual trigger tag: $TAG"
-          else
-            echo "Auto trigger from workflow_run"
+          TAG="${{ inputs.tag }}"
 
-            TAG="${{ github.event.workflow_run.head_branch }}"
-
-            if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
-              echo "The completed Build (Releases) run did not provide a release tag"
-              exit 1
-            fi
-
-            echo "Release tag from completed Build (Releases) run: $TAG"
+          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+            echo "No GitHub Release tag was provided"
+            exit 1
           fi
+
+          echo "Release tag: $TAG"
 
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 

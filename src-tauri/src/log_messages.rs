@@ -278,7 +278,8 @@ fn format_download_source(value: &str) -> String {
     match value {
         "mirror_chan" => "Mirror酱".to_string(),
         "github" => "GitHub".to_string(),
-        "rainyun_cdn" => "雨云 CDN".to_string(),
+        "cnb" => "CNB".to_string(),
+        "rainyun_cdn" => "CNB（由旧雨云 CDN 配置迁移）".to_string(),
         other => other.to_string(),
     }
 }

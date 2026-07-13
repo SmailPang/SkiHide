@@ -19,7 +19,7 @@ pub const UPDATE_DOWNLOAD_PROGRESS_EVENT: &str = "skihide://update-download-prog
 
 const MIRROR_ENDPOINT: &str = "https://mirrorchyan.com/api/resources/SkiHide/latest";
 const SKIHIDE_ENDPOINT: &str = "https://update.skihide.xyz/api";
-const RAINYUN_CDN_BASE: &str = "https://skihide.cn-nb1.rains3.com";
+const CNB_RELEASE_BASE: &str = "https://cnb.cool/SmailPang/SkiHide/-/releases/download";
 const GITHUB_RELEASE_BASE: &str = "https://github.com/SmailPang/SkiHide/releases/download";
 
 #[derive(Deserialize)]
@@ -395,18 +395,18 @@ fn build_download_candidates(source: &str, latest_version: &str) -> Vec<String> 
         return Vec::new();
     }
 
-    let rainyun_url = build_rainyun_cdn_url(version);
+    let cnb_url = build_cnb_url(version);
     let github_url = build_github_url(version);
 
     if source == "github" {
-        vec![github_url, rainyun_url]
+        vec![github_url, cnb_url]
     } else {
-        vec![rainyun_url, github_url]
+        vec![cnb_url, github_url]
     }
 }
 
-fn build_rainyun_cdn_url(version: &str) -> String {
-    format!("{RAINYUN_CDN_BASE}/SkiHide-{version}.exe")
+fn build_cnb_url(version: &str) -> String {
+    format!("{CNB_RELEASE_BASE}/{version}/SkiHide-{version}.exe")
 }
 
 fn build_github_url(version: &str) -> String {
@@ -487,6 +487,25 @@ mod tests {
     #[test]
     fn newer_beta_build_is_detected() {
         assert!(has_newer_version("2.0.1-beta1", "2.0.1-beta2").unwrap());
+    }
+
+    #[test]
+    fn cnb_download_url_uses_release_version() {
+        assert_eq!(
+            build_cnb_url("2.0.2-beta.1"),
+            "https://cnb.cool/SmailPang/SkiHide/-/releases/download/2.0.2-beta.1/SkiHide-2.0.2-beta.1.exe"
+        );
+    }
+
+    #[test]
+    fn cnb_source_is_preferred_before_github() {
+        assert_eq!(
+            build_download_candidates("cnb", "2.0.2-beta.1"),
+            vec![
+                "https://cnb.cool/SmailPang/SkiHide/-/releases/download/2.0.2-beta.1/SkiHide-2.0.2-beta.1.exe",
+                "https://github.com/SmailPang/SkiHide/releases/download/2.0.2-beta.1/SkiHide-2.0.2-beta.1.exe",
+            ]
+        );
     }
 }
 

@@ -15,7 +15,7 @@ const themeOptionValues = ['system', 'light', 'dark'] as const;
 const fontSizeOptionValues = ['small', 'medium', 'large', 'xlarge'] as const;
 const updateSourceOptionValues = ['mirror_chan', 'skihide'] as const;
 const updateChannelOptionValues = ['stable', 'beta'] as const;
-const downloadSourceOptionValues = ['mirror_chan', 'github', 'rainyun_cdn'] as const;
+const downloadSourceOptionValues = ['mirror_chan', 'github', 'cnb'] as const;
 
 export {
   languageOptionValues,
@@ -76,8 +76,8 @@ export function useAppSettings(opts: {
   const savedUpdateChannel = ref<'stable' | 'beta'>('stable');
   const mirrorChanSdk = ref('');
   const savedMirrorChanSdk = ref('');
-  const downloadSource = ref<'mirror_chan' | 'github' | 'rainyun_cdn'>('rainyun_cdn');
-  const savedDownloadSource = ref<'mirror_chan' | 'github' | 'rainyun_cdn'>('rainyun_cdn');
+  const downloadSource = ref<'mirror_chan' | 'github' | 'cnb'>('cnb');
+  const savedDownloadSource = ref<'mirror_chan' | 'github' | 'cnb'>('cnb');
   const autoCheckUpdates = ref(true);
   const savedAutoCheckUpdates = ref(true);
   const autoListenOnStartup = ref(false);
@@ -178,16 +178,16 @@ export function useAppSettings(opts: {
     mirrorChanSdk.value = config.mirror_chan_sdk ?? '';
     savedMirrorChanSdk.value = mirrorChanSdk.value;
 
-    const nextDownloadSource = downloadSourceOptionValues.includes(config.download_source as typeof downloadSourceOptionValues[number])
-      ? (config.download_source as typeof downloadSourceOptionValues[number])
-      : 'rainyun_cdn';
+    const migratedDownloadSource = config.download_source === 'rainyun_cdn' ? 'cnb' : config.download_source;
+    const nextDownloadSource = downloadSourceOptionValues.includes(migratedDownloadSource as typeof downloadSourceOptionValues[number])
+      ? (migratedDownloadSource as typeof downloadSourceOptionValues[number])
+      : 'cnb';
     const normalizedDownloadSource =
-      nextDownloadSource === 'mirror_chan' && !mirrorChanSdk.value.trim() ? 'rainyun_cdn' : nextDownloadSource;
+      nextDownloadSource === 'mirror_chan' && !mirrorChanSdk.value.trim() ? 'cnb' : nextDownloadSource;
 
     if (nextUpdateChannel === 'beta') {
       if (nextUpdateSource === 'skihide') updateSource.value = 'mirror_chan';
-      if (normalizedDownloadSource === 'rainyun_cdn') downloadSource.value = 'github';
-      else downloadSource.value = normalizedDownloadSource;
+      downloadSource.value = normalizedDownloadSource;
     } else {
       downloadSource.value = normalizedDownloadSource;
     }
@@ -214,7 +214,7 @@ export function useAppSettings(opts: {
   }) {
     try {
       if (!mirrorChanSdkConfigured.value && downloadSource.value === 'mirror_chan') {
-        downloadSource.value = 'rainyun_cdn';
+        downloadSource.value = 'cnb';
       }
       if (pauseOnHide.value && !pauseHotkey.value.trim()) {
         pauseHotkeyError.value = t('settings.pauseHotkeyRequired');
@@ -286,7 +286,7 @@ export function useAppSettings(opts: {
     downloadSource.value = savedDownloadSource.value;
     autoCheckUpdates.value = savedAutoCheckUpdates.value;
     if (!mirrorChanSdkConfigured.value && downloadSource.value === 'mirror_chan') {
-      downloadSource.value = 'rainyun_cdn';
+      downloadSource.value = 'cnb';
     }
     locale.value = savedLanguage.value;
     animateThemeChange(resolveTheme(savedTheme.value));
@@ -316,7 +316,6 @@ export function useAppSettings(opts: {
   function selectUpdateChannel(value: 'stable' | 'beta') {
     updateChannel.value = value;
     if (value === 'beta' && updateSource.value === 'skihide') updateSource.value = 'mirror_chan';
-    if (value === 'beta' && downloadSource.value === 'rainyun_cdn') downloadSource.value = 'github';
   }
 
   return {

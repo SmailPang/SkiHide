@@ -97,7 +97,11 @@ pub fn load_config() -> Result<AppConfig, String> {
         config.update_channel = update_channel;
     }
     if let Some(download_source) = read_string_value(key.raw(), VALUE_DOWNLOAD_SOURCE)? {
-        config.download_source = download_source;
+        config.download_source = if download_source == "rainyun_cdn" {
+            "cnb".to_string()
+        } else {
+            download_source
+        };
     }
     if let Some(mirror_chan_sdk) = read_string_value(key.raw(), VALUE_MIRROR_CHAN_SDK)? {
         config.mirror_chan_sdk = mirror_chan_sdk;

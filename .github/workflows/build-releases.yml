@@ -4,6 +4,10 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: write
+  actions: write
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -67,11 +71,25 @@ jobs:
         with:
           files: out/*.exe
 
-      - name: Trigger MirrorChyanUploading
-        if: ${{ github.repository_owner == 'SmailPang' }}
+  sync-cnb-release:
+    name: Sync CNB Release
+    needs: build-windows
+    uses: ./.github/workflows/sync-to-cnb-release.yml
+    with:
+      tag: ${{ github.event.release.tag_name }}
+    secrets: inherit
+
+  trigger-mirrorchyan:
+    name: Trigger MirrorChyan Uploading
+    needs: sync-cnb-release
+    if: ${{ github.repository_owner == 'SmailPang' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger MirrorChyan workflows
         shell: bash
         run: |
-          gh workflow run --repo $GITHUB_REPOSITORY mirrorchyan_release.yml -f tag=${{ env.VERSION }}
-          gh workflow run --repo $GITHUB_REPOSITORY mirrorchyan_release_note.yml -f tag=${{ env.VERSION }}
+          gh workflow run --repo "$GITHUB_REPOSITORY" mirrorchyan_release.yml -f tag="$RELEASE_TAG"
+          gh workflow run --repo "$GITHUB_REPOSITORY" mirrorchyan_release_note.yml -f tag="$RELEASE_TAG"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}

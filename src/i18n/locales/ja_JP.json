@@ -154,7 +154,7 @@
     "downloadSource": {
       "mirror_chan": "MirrorChyan",
       "github": "GitHub",
-      "rainyun_cdn": "RainCloud CDN"
+      "cnb": "CNB"
     },
     "fontSize": {
       "small": "小",

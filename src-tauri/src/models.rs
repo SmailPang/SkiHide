@@ -47,7 +47,7 @@ impl Default for AppConfig {
             pause_hotkey: String::new(),
             update_source: "mirror_chan".to_string(),
             update_channel: "stable".to_string(),
-            download_source: "rainyun_cdn".to_string(),
+            download_source: "cnb".to_string(),
             mirror_chan_sdk: String::new(),
             auto_check_updates: true,
             mouse_side_button_listener: false,

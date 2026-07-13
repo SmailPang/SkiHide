@@ -34,7 +34,7 @@ const props = defineProps<{
   updateSource: 'mirror_chan' | 'skihide';
   updateChannel: 'stable' | 'beta';
   mirrorChanSdk: string;
-  downloadSource: 'mirror_chan' | 'github' | 'rainyun_cdn';
+  downloadSource: 'mirror_chan' | 'github' | 'cnb';
   autoCheckUpdates: boolean;
   settingsDirty: boolean;
   silentStartDisabled: boolean;
@@ -55,7 +55,7 @@ const emit = defineEmits<{
   'toggle-auto-check-updates': [];
   'select-update-source': [value: 'mirror_chan' | 'skihide'];
   'select-update-channel': [value: 'stable' | 'beta'];
-  'select-download-source': [value: 'mirror_chan' | 'github' | 'rainyun_cdn'];
+  'select-download-source': [value: 'mirror_chan' | 'github' | 'cnb'];
   'open-mirror-cdk-dialog': [];
   'toggle-pause-hotkey-recording': [];
   'clear-pause-hotkey': [];
@@ -139,7 +139,6 @@ const availableUpdateSourceOptions = computed(() =>
 const mirrorChanSdkConfigured = computed(() => props.mirrorChanSdk.trim().length > 0);
 const availableDownloadSourceOptions = computed(() => {
   let options = [...downloadSourceOptionValues];
-  if (props.updateChannel === 'beta') options = options.filter((o) => o !== 'rainyun_cdn');
   if (!mirrorChanSdkConfigured.value) options = options.filter((o) => o !== 'mirror_chan');
   return options;
 });
@@ -207,7 +206,7 @@ function toggleDownloadSourceMenu(event: MouseEvent) {
   downloadSourceMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement, availableDownloadSourceOptions.value.length);
   closeAllMenus(); downloadSourceOpen.value = next;
 }
-function selectDownloadSource(value: 'mirror_chan' | 'github' | 'rainyun_cdn') {
+function selectDownloadSource(value: 'mirror_chan' | 'github' | 'cnb') {
   if (value === 'mirror_chan' && !mirrorChanSdkConfigured.value) return;
   emit('select-download-source', value); downloadSourceOpen.value = false;
 }
