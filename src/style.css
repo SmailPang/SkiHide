@@ -501,6 +501,7 @@ main {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  cursor: default;
 }
 
 .toolbox-action-placeholder {
@@ -741,7 +742,7 @@ main {
 .toolbox-feedback-actions {
   width: 100%;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
@@ -965,6 +966,12 @@ main {
   fill: #111111;
 }
 
+
+.toolbox-about-bilibili-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
 .toolbox-check-row {
   display: flex;
   align-items: center;

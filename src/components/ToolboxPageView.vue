@@ -5,6 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
 import appIconUrl from '../assets/app-icon.svg';
 import mirrorchyanUrl from '../assets/mirrorchyan.png';
 import raincloudUrl from '../assets/raincloud.png';
+import bilibiliIconUrl from '../assets/bilibili.ico';
 import avatarUrl from '../assets/touxiang.jpg';
 import type { MemoryStatusInfo } from '../types';
 
@@ -170,6 +171,7 @@ function handleGlobalMouseUp() { toolboxDragging = false; }
 
 function openExternalUrl(url: string) { void invoke('open_external_url', { url }); }
 function openGithubProfile() { openExternalUrl('https://github.com/SmailPang'); }
+function openBilibiliProfile() { openExternalUrl('https://space.bilibili.com/674779529'); }
 
 onMounted(() => {
   window.addEventListener('mousemove', handleGlobalMouseMove);
@@ -299,7 +301,6 @@ onBeforeUnmount(() => {
               <div class="toolbox-feedback-note" @click.stop>{{ t('toolbox.feedbackNotice') }}</div>
               <div class="toolbox-feedback-actions" @click.stop>
                 <button class="toolbox-feedback-button" type="button" @click.stop="openExternalUrl('https://github.com/SmailPang/SkiHide/issues')">{{ t('toolbox.feedbackIssues') }}</button>
-                <button class="toolbox-feedback-button" type="button" @click.stop="openExternalUrl('https://www.bilibili.com/video/BV1wkvaBmEZP')">{{ t('toolbox.feedbackGuide') }}</button>
               </div>
             </div>
           </Transition>
@@ -326,6 +327,9 @@ onBeforeUnmount(() => {
                   <span class="toolbox-about-name">SmailPang</span>
                   <span class="toolbox-about-role">{{ t('toolbox.developer') }}</span>
                 </div>
+                <button class="toolbox-about-github" type="button" aria-label="Open Bilibili profile" @click.stop="openBilibiliProfile">
+                  <img class="toolbox-about-bilibili-icon" :src="bilibiliIconUrl" alt="Bilibili" />
+                </button>
                 <button class="toolbox-about-github" type="button" aria-label="Open GitHub profile" @click.stop="openGithubProfile">
                   <svg class="toolbox-about-github-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.23c0 4.52 2.87 8.35 6.84 9.7.5.1.68-.22.68-.49 0-.24-.01-1.05-.01-1.9-2.78.62-3.37-1.21-3.37-1.21-.46-1.19-1.11-1.51-1.11-1.51-.91-.64.07-.63.07-.63 1 .07 1.53 1.06 1.53 1.06.9 1.57 2.36 1.12 2.94.86.09-.67.35-1.12.63-1.38-2.22-.26-4.56-1.14-4.56-5.1 0-1.13.39-2.05 1.03-2.78-.1-.26-.45-1.32.1-2.76 0 0 .84-.27 2.75 1.06A9.3 9.3 0 0 1 12 6.84c.85 0 1.71.12 2.51.35 1.91-1.33 2.75-1.06 2.75-1.06.55 1.44.2 2.5.1 2.76.64.73 1.03 1.65 1.03 2.78 0 3.97-2.34 4.83-4.57 5.09.36.32.68.95.68 1.92 0 1.39-.01 2.5-.01 2.84 0 .27.18.59.69.49A10.25 10.25 0 0 0 22 12.23C22 6.58 17.52 2 12 2Z" /></svg>
                 </button>
