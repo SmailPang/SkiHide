@@ -338,7 +338,7 @@ onBeforeUnmount(() => {
                     <span class="toolbox-about-link-name">{{ t('toolbox.raincloudName') }}</span>
                     <span class="toolbox-about-link-desc">{{ t('toolbox.raincloudDesc') }}</span>
                   </div>
-                  <button class="toolbox-about-link-button" type="button" :aria-label="t('toolbox.openLink')" @click.stop="openExternalUrl('https://www.rainyun.com/Pang_')">
+                  <button class="toolbox-about-link-button" type="button" :aria-label="t('toolbox.openLink')" @click.stop="openExternalUrl('https://www.rainyun.com/Pang_?s=skihide-client')">
                     <svg class="toolbox-about-link-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6h-2V7.41l-8.29 8.3-1.42-1.42 8.3-8.29H14V4Zm4 14V11h2v8a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h8v2H6v12h12Z" /></svg>
                   </button>
                 </div>

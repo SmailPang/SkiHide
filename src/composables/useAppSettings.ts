@@ -13,9 +13,9 @@ export type LanguageValue = 'zh_CN' | 'zh_TW' | 'en_US' | 'ja_JP';
 const languageOptionValues: LanguageValue[] = ['zh_CN', 'zh_TW', 'en_US', 'ja_JP'];
 const themeOptionValues = ['system', 'light', 'dark'] as const;
 const fontSizeOptionValues = ['small', 'medium', 'large', 'xlarge'] as const;
-const updateSourceOptionValues = ['mirror_chan', 'skihide'] as const;
+const updateSourceOptionValues = ['mirror_chan', 'skihide', 'cloudflare'] as const;
 const updateChannelOptionValues = ['stable', 'beta'] as const;
-const downloadSourceOptionValues = ['mirror_chan', 'github', 'cnb'] as const;
+const downloadSourceOptionValues = ['mirror_chan', 'cloudflare', 'github', 'cnb'] as const;
 
 export {
   languageOptionValues,
@@ -70,14 +70,14 @@ export function useAppSettings(opts: {
   const savedPauseHotkey = ref('');
   const pauseHotkeyError = ref('');
   const recordingPauseHotkey = ref(false);
-  const updateSource = ref<'mirror_chan' | 'skihide'>('mirror_chan');
-  const savedUpdateSource = ref<'mirror_chan' | 'skihide'>('mirror_chan');
+  const updateSource = ref<'mirror_chan' | 'skihide' | 'cloudflare'>('mirror_chan');
+  const savedUpdateSource = ref<'mirror_chan' | 'skihide' | 'cloudflare'>('mirror_chan');
   const updateChannel = ref<'stable' | 'beta'>('stable');
   const savedUpdateChannel = ref<'stable' | 'beta'>('stable');
   const mirrorChanSdk = ref('');
   const savedMirrorChanSdk = ref('');
-  const downloadSource = ref<'mirror_chan' | 'github' | 'cnb'>('cnb');
-  const savedDownloadSource = ref<'mirror_chan' | 'github' | 'cnb'>('cnb');
+  const downloadSource = ref<'mirror_chan' | 'cloudflare' | 'github' | 'cnb'>('cnb');
+  const savedDownloadSource = ref<'mirror_chan' | 'cloudflare' | 'github' | 'cnb'>('cnb');
   const autoCheckUpdates = ref(true);
   const savedAutoCheckUpdates = ref(true);
   const autoListenOnStartup = ref(false);
@@ -186,7 +186,7 @@ export function useAppSettings(opts: {
       nextDownloadSource === 'mirror_chan' && !mirrorChanSdk.value.trim() ? 'cnb' : nextDownloadSource;
 
     if (nextUpdateChannel === 'beta') {
-      if (nextUpdateSource === 'skihide') updateSource.value = 'mirror_chan';
+      if (nextUpdateSource === 'skihide' || nextUpdateSource === 'cloudflare') updateSource.value = 'mirror_chan';
       downloadSource.value = normalizedDownloadSource;
     } else {
       downloadSource.value = normalizedDownloadSource;
@@ -315,7 +315,7 @@ export function useAppSettings(opts: {
   }
   function selectUpdateChannel(value: 'stable' | 'beta') {
     updateChannel.value = value;
-    if (value === 'beta' && updateSource.value === 'skihide') updateSource.value = 'mirror_chan';
+    if (value === 'beta' && (updateSource.value === 'skihide' || updateSource.value === 'cloudflare')) updateSource.value = 'mirror_chan';
   }
 
   return {

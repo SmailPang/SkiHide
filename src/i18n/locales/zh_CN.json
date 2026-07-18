@@ -145,7 +145,8 @@
     },
     "updateSource": {
       "mirror_chan": "Mirror酱",
-      "skihide": "SkiHide"
+      "skihide": "SkiHide",
+      "cloudflare": "Cloudflare"
     },
     "updateChannel": {
       "stable": "稳定通道",
@@ -153,6 +154,7 @@
     },
     "downloadSource": {
       "mirror_chan": "Mirror酱",
+      "cloudflare": "Cloudflare",
       "github": "GitHub",
       "cnb": "CNB"
     },

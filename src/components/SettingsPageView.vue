@@ -31,10 +31,10 @@ const props = defineProps<{
   muteOnHide: boolean;
   pauseOnHide: boolean;
   pauseHotkey: string;
-  updateSource: 'mirror_chan' | 'skihide';
+  updateSource: 'mirror_chan' | 'skihide' | 'cloudflare';
   updateChannel: 'stable' | 'beta';
   mirrorChanSdk: string;
-  downloadSource: 'mirror_chan' | 'github' | 'cnb';
+  downloadSource: 'mirror_chan' | 'cloudflare' | 'github' | 'cnb';
   autoCheckUpdates: boolean;
   settingsDirty: boolean;
   silentStartDisabled: boolean;
@@ -53,9 +53,9 @@ const emit = defineEmits<{
   'toggle-mute-on-hide': [];
   'toggle-pause-on-hide': [];
   'toggle-auto-check-updates': [];
-  'select-update-source': [value: 'mirror_chan' | 'skihide'];
+  'select-update-source': [value: 'mirror_chan' | 'skihide' | 'cloudflare'];
   'select-update-channel': [value: 'stable' | 'beta'];
-  'select-download-source': [value: 'mirror_chan' | 'github' | 'cnb'];
+  'select-download-source': [value: 'mirror_chan' | 'cloudflare' | 'github' | 'cnb'];
   'open-mirror-cdk-dialog': [];
   'toggle-pause-hotkey-recording': [];
   'clear-pause-hotkey': [];
@@ -132,7 +132,7 @@ const fontFamilySelectOptions = computed(() => {
 
 const availableUpdateSourceOptions = computed(() =>
   props.updateChannel === 'beta'
-    ? updateSourceOptionValues.filter((o) => o !== 'skihide')
+    ? updateSourceOptionValues.filter((o) => o !== 'skihide' && o !== 'cloudflare')
     : [...updateSourceOptionValues],
 );
 
@@ -190,7 +190,7 @@ function toggleUpdateSourceMenu(event: MouseEvent) {
   updateSourceMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement, availableUpdateSourceOptions.value.length);
   closeAllMenus(); updateSourceOpen.value = next;
 }
-function selectUpdateSource(value: 'mirror_chan' | 'skihide') {
+function selectUpdateSource(value: 'mirror_chan' | 'skihide' | 'cloudflare') {
   emit('select-update-source', value); updateSourceOpen.value = false;
 }
 function toggleUpdateChannelMenu(event: MouseEvent) {
@@ -206,7 +206,7 @@ function toggleDownloadSourceMenu(event: MouseEvent) {
   downloadSourceMenuUp.value = shouldOpenMenuUp(event.currentTarget as HTMLElement, availableDownloadSourceOptions.value.length);
   closeAllMenus(); downloadSourceOpen.value = next;
 }
-function selectDownloadSource(value: 'mirror_chan' | 'github' | 'cnb') {
+function selectDownloadSource(value: 'mirror_chan' | 'cloudflare' | 'github' | 'cnb') {
   if (value === 'mirror_chan' && !mirrorChanSdkConfigured.value) return;
   emit('select-download-source', value); downloadSourceOpen.value = false;
 }

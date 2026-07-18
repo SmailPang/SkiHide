@@ -16,6 +16,7 @@ mod window_ops;
 
 use std::{
     collections::{HashMap, HashSet},
+    os::windows::process::CommandExt,
     str::FromStr,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -50,6 +51,7 @@ const LOG_EVENT: &str = "skihide://log";
 #[allow(dead_code)]
 const REFRESH_EVENT: &str = "skihide://refresh-requested";
 const OPEN_SETTINGS_EVENT: &str = "skihide://open-settings";
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 struct AppState {
     app: AppHandle,
@@ -422,6 +424,7 @@ fn set_hotkey_enabled(enabled: bool, state: State<'_, AppState>) -> Result<(), S
 fn open_external_url(url: String, state: State<'_, AppState>) -> Result<(), String> {
     std::process::Command::new("cmd")
         .args(["/C", "start", "", &url])
+        .creation_flags(CREATE_NO_WINDOW)
         .spawn()
         .map_err(|error| format!("failed to open external url: {error}"))?;
 

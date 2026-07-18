@@ -59,6 +59,11 @@ export function useMarkdown() {
         const trimmed = line.trim();
         if (!trimmed) return '<div class="md-spacer"></div>';
 
+        const blockquote = trimmed.match(/^>\s?(.*)$/);
+        if (blockquote) {
+          return `<blockquote><p>${formatMarkdownInline(blockquote[1] ?? '')}</p></blockquote>`;
+        }
+
         const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
         if (heading) {
           const level = Math.min(6, Math.max(1, heading[1].length));
@@ -72,7 +77,8 @@ export function useMarkdown() {
         return `<p>${formatMarkdownInline(trimmed)}</p>`;
       })
       .join('')
-      .replace(/(<li>.*?<\/li>)+/g, (match) => `<ul>${match}</ul>`);
+      .replace(/(<li>.*?<\/li>)+/g, (match) => `<ul>${match}</ul>`)
+      .replace(/<\/blockquote><blockquote>/g, '');
   }
 
   return { renderSimpleMarkdown };

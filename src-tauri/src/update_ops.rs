@@ -19,8 +19,10 @@ pub const UPDATE_DOWNLOAD_PROGRESS_EVENT: &str = "skihide://update-download-prog
 
 const MIRROR_ENDPOINT: &str = "https://mirrorchyan.com/api/resources/SkiHide/latest";
 const SKIHIDE_ENDPOINT: &str = "https://update.skihide.xyz/api";
+const CLOUDFLARE_ENDPOINT: &str = "https://v2.skihide.xyz";
 const CNB_RELEASE_BASE: &str = "https://cnb.cool/SmailPang/SkiHide/-/releases/download";
 const GITHUB_RELEASE_BASE: &str = "https://github.com/SmailPang/SkiHide/releases/download";
+const SOFTWARE_NAME: &str = "SkiHide";
 
 #[derive(Deserialize)]
 struct MirrorResponse {
@@ -46,11 +48,64 @@ struct SkiHideResponse {
     sha256: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct CloudflareResponse {
+    version: String,
+    changelog: String,
+    downloads: Vec<CloudflareDownload>,
+}
+
+#[derive(Deserialize)]
+struct CloudflareDownload {
+    name: String,
+    download_url: String,
+    digest: Option<String>,
+}
+
 pub async fn check_for_updates(
     current_version: &str,
     config: &AppConfig,
 ) -> Result<UpdateCheckInfo, String> {
-    let client = Client::new();
+    let client = update_client()?;
+    if config.update_source == "cloudflare" {
+        // The Worker API deliberately looks up an exact tag. Use SkiHide's stable
+        // feed for discovery, then obtain the release metadata from Cloudflare.
+        let official = fetch_skihide_info(&client, &config.language).await?;
+        let cloudflare = fetch_cloudflare_info(&client, &official.version).await?;
+        let has_update = has_newer_version(current_version, &cloudflare.version)?;
+        let cloudflare_asset = select_cloudflare_asset(&cloudflare);
+        let download_candidates = if has_update {
+            build_download_candidates(
+                &config.download_source,
+                &cloudflare.version,
+                cloudflare_asset.map(|asset| asset.download_url.as_str()),
+            )
+        } else {
+            Vec::new()
+        };
+        let sha256 = cloudflare_asset
+            .and_then(|asset| asset.digest.as_deref())
+            .and_then(normalize_sha256)
+            .or(official.sha256);
+
+        return Ok(UpdateCheckInfo {
+            source: "cloudflare".to_string(),
+            current_version: current_version.to_string(),
+            latest_version: cloudflare.version,
+            changelog: if cloudflare.changelog.is_empty() {
+                official.update_log
+            } else {
+                cloudflare.changelog
+            },
+            has_update,
+            download_url: download_candidates.first().cloned(),
+            download_candidates,
+            sha256,
+            mirror_code: None,
+            mirror_message: None,
+        });
+    }
+
     if config.update_source == "mirror_chan" {
         let channel = match config.update_channel.as_str() {
             "beta" => "beta",
@@ -98,12 +153,21 @@ pub async fn check_for_updates(
         let mut sha256 = data.sha256.clone();
 
         if has_update && download_url.is_none() {
-            let can_use_mirror_download =
-                config.download_source == "mirror_chan" && !config.mirror_chan_sdk.trim().is_empty();
+            let can_use_mirror_download = config.download_source == "mirror_chan"
+                && !config.mirror_chan_sdk.trim().is_empty();
             if !can_use_mirror_download {
                 let official = fetch_skihide_info(&client, &config.language).await?;
-                download_candidates =
-                    build_download_candidates(&config.download_source, &data.version_name);
+                let cloudflare = fetch_cloudflare_for_download_source(
+                    &client,
+                    &config.download_source,
+                    &data.version_name,
+                )
+                .await;
+                download_candidates = build_download_candidates(
+                    &config.download_source,
+                    &data.version_name,
+                    cloudflare.as_deref(),
+                );
                 download_url = download_candidates.first().cloned();
                 if sha256.is_none() {
                     sha256 = official.sha256.clone();
@@ -130,7 +194,17 @@ pub async fn check_for_updates(
     let official = fetch_skihide_info(&client, &config.language).await?;
     let has_update = has_newer_version(current_version, &official.version)?;
     let download_candidates = if has_update {
-        build_download_candidates(&config.download_source, &official.version)
+        let cloudflare = fetch_cloudflare_for_download_source(
+            &client,
+            &config.download_source,
+            &official.version,
+        )
+        .await;
+        build_download_candidates(
+            &config.download_source,
+            &official.version,
+            cloudflare.as_deref(),
+        )
     } else {
         Vec::new()
     };
@@ -165,7 +239,7 @@ pub async fn resolve_mirror_download_with_cdk(
         });
     }
 
-    let client = Client::new();
+    let client = update_client()?;
     let query: Vec<(&str, String)> = vec![
         ("current_version", current_version.to_string()),
         ("user_agent", "skihide-client".to_string()),
@@ -194,10 +268,7 @@ pub async fn resolve_mirror_download_with_cdk(
         });
     }
 
-    let url = mirror_data
-        .data
-        .as_ref()
-        .and_then(|data| data.url.clone());
+    let url = mirror_data.data.as_ref().and_then(|data| data.url.clone());
     let sha256 = mirror_data
         .data
         .as_ref()
@@ -225,7 +296,7 @@ pub async fn validate_mirror_cdk(
         });
     }
 
-    let client = Client::new();
+    let client = update_client()?;
     let query: Vec<(&str, String)> = vec![
         ("current_version", current_version.to_string()),
         ("user_agent", "skihide-client".to_string()),
@@ -297,7 +368,7 @@ async fn download_update_package_once(
     expected_sha256: Option<&str>,
     version: &str,
 ) -> Result<(PathBuf, String), String> {
-    let client = Client::new();
+    let client = update_client()?;
     let response = client
         .get(url)
         .send()
@@ -389,7 +460,83 @@ async fn fetch_skihide_info(client: &Client, language: &str) -> Result<SkiHideRe
         .map_err(|error| format!("failed to parse skihide response: {error}"))
 }
 
-fn build_download_candidates(source: &str, latest_version: &str) -> Vec<String> {
+async fn fetch_cloudflare_info(
+    client: &Client,
+    version: &str,
+) -> Result<CloudflareResponse, String> {
+    let response = client
+        .get(format!("{CLOUDFLARE_ENDPOINT}/api/check-update"))
+        .query(&[("tag", version)])
+        .send()
+        .await
+        .map_err(|error| format!("failed to request Cloudflare update info: {error}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "Cloudflare update request failed with status {}",
+            response.status()
+        ));
+    }
+
+    response
+        .json::<CloudflareResponse>()
+        .await
+        .map_err(|error| format!("failed to parse Cloudflare response: {error}"))
+}
+
+async fn fetch_cloudflare_for_download_source(
+    client: &Client,
+    source: &str,
+    version: &str,
+) -> Option<String> {
+    if source != "cloudflare" {
+        return None;
+    }
+
+    fetch_cloudflare_info(client, version)
+        .await
+        .ok()
+        .and_then(|response| {
+            select_cloudflare_asset(&response).map(|asset| asset.download_url.clone())
+        })
+}
+
+fn select_cloudflare_asset(response: &CloudflareResponse) -> Option<&CloudflareDownload> {
+    let expected_name = format!("SkiHide-{}.exe", response.version);
+    response
+        .downloads
+        .iter()
+        .find(|asset| asset.name.eq_ignore_ascii_case(&expected_name))
+        .or_else(|| {
+            response
+                .downloads
+                .iter()
+                .find(|asset| asset.name.ends_with(".exe"))
+        })
+}
+
+fn normalize_sha256(digest: &str) -> Option<String> {
+    let value = digest.trim();
+    let value = value.strip_prefix("sha256:").unwrap_or(value);
+    (!value.is_empty()).then(|| value.to_ascii_lowercase())
+}
+
+fn update_client() -> Result<Client, String> {
+    Client::builder()
+        .user_agent(update_user_agent())
+        .build()
+        .map_err(|error| format!("failed to create update client: {error}"))
+}
+
+fn update_user_agent() -> String {
+    format!("{SOFTWARE_NAME}/{}", env!("CARGO_PKG_VERSION"))
+}
+
+fn build_download_candidates(
+    source: &str,
+    latest_version: &str,
+    cloudflare_url: Option<&str>,
+) -> Vec<String> {
     let version = latest_version.trim();
     if version.is_empty() {
         return Vec::new();
@@ -398,10 +545,13 @@ fn build_download_candidates(source: &str, latest_version: &str) -> Vec<String> 
     let cnb_url = build_cnb_url(version);
     let github_url = build_github_url(version);
 
-    if source == "github" {
-        vec![github_url, cnb_url]
-    } else {
-        vec![cnb_url, github_url]
+    match source {
+        "cloudflare" => cloudflare_url
+            .filter(|url| !url.trim().is_empty())
+            .map(|url| vec![url.to_string(), cnb_url.clone(), github_url.clone()])
+            .unwrap_or_else(|| vec![cnb_url, github_url]),
+        "github" => vec![github_url, cnb_url],
+        _ => vec![cnb_url, github_url],
     }
 }
 
@@ -414,7 +564,8 @@ fn build_github_url(version: &str) -> String {
 }
 
 fn resolve_updates_dir() -> Result<PathBuf, String> {
-    let exe = std::env::current_exe().map_err(|error| format!("failed to resolve exe path: {error}"))?;
+    let exe =
+        std::env::current_exe().map_err(|error| format!("failed to resolve exe path: {error}"))?;
     let base = exe
         .parent()
         .ok_or_else(|| "failed to resolve executable directory".to_string())?;
@@ -500,11 +651,35 @@ mod tests {
     #[test]
     fn cnb_source_is_preferred_before_github() {
         assert_eq!(
-            build_download_candidates("cnb", "2.0.2-beta.1"),
+            build_download_candidates("cnb", "2.0.2-beta.1", None),
             vec![
                 "https://cnb.cool/SmailPang/SkiHide/-/releases/download/2.0.2-beta.1/SkiHide-2.0.2-beta.1.exe",
                 "https://github.com/SmailPang/SkiHide/releases/download/2.0.2-beta.1/SkiHide-2.0.2-beta.1.exe",
             ]
+        );
+    }
+
+    #[test]
+    fn cloudflare_source_is_preferred_with_existing_fallbacks() {
+        assert_eq!(
+            build_download_candidates(
+                "cloudflare",
+                "2.0.3",
+                Some("https://example.workers.dev/api/download?asset_id=1"),
+            ),
+            vec![
+                "https://example.workers.dev/api/download?asset_id=1",
+                "https://cnb.cool/SmailPang/SkiHide/-/releases/download/2.0.3/SkiHide-2.0.3.exe",
+                "https://github.com/SmailPang/SkiHide/releases/download/2.0.3/SkiHide-2.0.3.exe",
+            ]
+        );
+    }
+
+    #[test]
+    fn update_user_agent_contains_software_name_and_version() {
+        assert_eq!(
+            update_user_agent(),
+            format!("SkiHide/{}", env!("CARGO_PKG_VERSION"))
         );
     }
 }

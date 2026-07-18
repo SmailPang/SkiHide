@@ -2124,7 +2124,8 @@ main {
 
 .update-dialog-markdown h3,
 .update-dialog-markdown p,
-.update-dialog-markdown ul {
+.update-dialog-markdown ul,
+.update-dialog-markdown blockquote {
   margin: 0;
 }
 
@@ -2133,6 +2134,18 @@ main {
   font-size: calc(13px * var(--font-scale));
   font-weight: 700;
 }
+.update-dialog-markdown blockquote {
+  padding: 8px 10px;
+  border-left: 3px solid #47a6d8;
+  border-radius: 4px 10px 10px 4px;
+  background: rgba(71, 166, 216, 0.1);
+  color: #36576a;
+}
+
+.update-dialog-markdown blockquote p + p {
+  margin-top: 4px;
+}
+
 
 .update-dialog-markdown ul {
   padding-left: 18px;
@@ -2335,6 +2348,12 @@ main {
 .theme-dark .update-dialog-markdown h3,
 .theme-dark .update-dialog-markdown strong {
   color: #f3f3f3;
+}
+
+.theme-dark .update-dialog-markdown blockquote {
+  border-left-color: #4db8ff;
+  background: rgba(77, 184, 255, 0.1);
+  color: #d0dce3;
 }
 
 .theme-dark .update-dialog-markdown a.md-link {

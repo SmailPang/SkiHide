@@ -262,6 +262,7 @@ fn format_update_source(value: &str) -> String {
     match value {
         "mirror_chan" => "Mirror酱".to_string(),
         "skihide" => "SkiHide".to_string(),
+        "cloudflare" => "Cloudflare".to_string(),
         other => other.to_string(),
     }
 }
@@ -278,6 +279,7 @@ fn format_download_source(value: &str) -> String {
     match value {
         "mirror_chan" => "Mirror酱".to_string(),
         "github" => "GitHub".to_string(),
+        "cloudflare" => "Cloudflare".to_string(),
         "cnb" => "CNB".to_string(),
         "rainyun_cdn" => "CNB（由旧雨云 CDN 配置迁移）".to_string(),
         other => other.to_string(),
