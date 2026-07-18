@@ -68,10 +68,8 @@ pub async fn check_for_updates(
 ) -> Result<UpdateCheckInfo, String> {
     let client = update_client()?;
     if config.update_source == "cloudflare" {
-        // The Worker API deliberately looks up an exact tag. Use SkiHide's stable
-        // feed for discovery, then obtain the release metadata from Cloudflare.
-        let official = fetch_skihide_info(&client, &config.language).await?;
-        let cloudflare = fetch_cloudflare_info(&client, &official.version).await?;
+        let channel = cloudflare_channel(&config.update_channel);
+        let cloudflare = fetch_cloudflare_info(&client, current_version, Some(channel)).await?;
         let has_update = has_newer_version(current_version, &cloudflare.version)?;
         let cloudflare_asset = select_cloudflare_asset(&cloudflare);
         let download_candidates = if has_update {
@@ -85,18 +83,13 @@ pub async fn check_for_updates(
         };
         let sha256 = cloudflare_asset
             .and_then(|asset| asset.digest.as_deref())
-            .and_then(normalize_sha256)
-            .or(official.sha256);
+            .and_then(normalize_sha256);
 
         return Ok(UpdateCheckInfo {
             source: "cloudflare".to_string(),
             current_version: current_version.to_string(),
             latest_version: cloudflare.version,
-            changelog: if cloudflare.changelog.is_empty() {
-                official.update_log
-            } else {
-                cloudflare.changelog
-            },
+            changelog: cloudflare.changelog,
             has_update,
             download_url: download_candidates.first().cloned(),
             download_candidates,
@@ -463,10 +456,15 @@ async fn fetch_skihide_info(client: &Client, language: &str) -> Result<SkiHideRe
 async fn fetch_cloudflare_info(
     client: &Client,
     version: &str,
+    channel: Option<&str>,
 ) -> Result<CloudflareResponse, String> {
-    let response = client
+    let mut request = client
         .get(format!("{CLOUDFLARE_ENDPOINT}/api/check-update"))
-        .query(&[("tag", version)])
+        .query(&[("version", version)]);
+    if let Some(channel) = channel {
+        request = request.query(&[("channel", channel)]);
+    }
+    let response = request
         .send()
         .await
         .map_err(|error| format!("failed to request Cloudflare update info: {error}"))?;
@@ -493,7 +491,7 @@ async fn fetch_cloudflare_for_download_source(
         return None;
     }
 
-    fetch_cloudflare_info(client, version)
+    fetch_cloudflare_info(client, version, None)
         .await
         .ok()
         .and_then(|response| {
@@ -530,6 +528,13 @@ fn update_client() -> Result<Client, String> {
 
 fn update_user_agent() -> String {
     format!("{SOFTWARE_NAME}/{}", env!("CARGO_PKG_VERSION"))
+}
+
+fn cloudflare_channel(update_channel: &str) -> &'static str {
+    match update_channel {
+        "beta" => "prerelease",
+        _ => "release",
+    }
 }
 
 fn build_download_candidates(
@@ -681,6 +686,12 @@ mod tests {
             update_user_agent(),
             format!("SkiHide/{}", env!("CARGO_PKG_VERSION"))
         );
+    }
+
+    #[test]
+    fn update_channels_map_to_cloudflare_api_values() {
+        assert_eq!(cloudflare_channel("beta"), "prerelease");
+        assert_eq!(cloudflare_channel("stable"), "release");
     }
 }
 

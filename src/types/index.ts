@@ -86,6 +86,7 @@ export interface CacheCleanupOptions {
   temp_files: boolean;
   thumbnail_cache: boolean;
   app_cache: boolean;
+  log_files: boolean;
   recycle_bin: boolean;
 }
 

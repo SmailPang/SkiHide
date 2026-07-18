@@ -12,6 +12,7 @@ import PrivacyDialog from './components/PrivacyDialog.vue';
 import MirrorCdkDialog from './components/MirrorCdkDialog.vue';
 import UpdateDialog from './components/UpdateDialog.vue';
 import DangerDialog from './components/DangerDialog.vue';
+import CacheCleanupConfirmDialog from './components/CacheCleanupConfirmDialog.vue';
 
 import { useNotify } from './composables/useNotify';
 import { useTheme } from './composables/useTheme';
@@ -79,6 +80,7 @@ const returnToUpdateAfterMirrorDialog = ref(false);
 
 // Danger dialog
 const dangerDialogOpen = ref(false);
+const cacheCleanupConfirmOpen = ref(false);
 
 let openSettingsUnlisten: UnlistenFn | null = null;
 let updateProgressUnlisten: UnlistenFn | null = null;
@@ -424,6 +426,19 @@ async function acceptPrivacyConsent() {
 }
 
 async function rejectPrivacyConsent() { await invoke('exit_app'); }
+// ── Cache cleanup confirmation ───────────────────────────────────────────────
+function requestCacheCleanup() {
+  if (!cache.hasCacheSelection.value) {
+    notify({ title: t('toolbox.cacheTitle'), content: t('toolbox.cacheSelectLabel'), type: 'warn' });
+    return;
+  }
+  cacheCleanupConfirmOpen.value = true;
+}
+
+async function confirmCacheCleanup() {
+  cacheCleanupConfirmOpen.value = false;
+  await cache.runCacheCleanup();
+}
 
 // ── Danger ────────────────────────────────────────────────────────────────────
 function continueDangerAction() {
@@ -570,13 +585,15 @@ onBeforeUnmount(() => {
           :cache-selections="cache.cacheSelections.value"
           :cache-cleanup-running="cache.cacheCleanupRunning.value"
           :app-version="appVersion"
+          :cache-all-selected="cache.cacheAllSelected.value"
           @run-memory-cleanup="memory.runMemoryCleanup()"
           @toggle-memory-auto-cleanup="memory.toggleMemoryAutoCleanup"
           @memory-interval-input="memory.handleMemoryIntervalInput"
           @finalize-memory-interval="memory.finalizeMemoryIntervalInput"
           @select-memory-unit="memory.selectMemoryCleanupUnit"
           @toggle-cache-selection="cache.toggleCacheSelection"
-          @run-cache-cleanup="cache.runCacheCleanup"
+          @toggle-cache-all="cache.toggleAllCacheSelections"
+          @run-cache-cleanup="requestCacheCleanup"
           @open-update-dialog="openUpdateDialog"
           @open-danger-dialog="dangerDialogOpen = true"
         />
@@ -670,5 +687,10 @@ onBeforeUnmount(() => {
     </Transition>
 
     <DangerDialog :open="dangerDialogOpen" @continue="continueDangerAction" />
+    <CacheCleanupConfirmDialog
+      :open="cacheCleanupConfirmOpen"
+      @confirm="confirmCacheCleanup"
+      @cancel="cacheCleanupConfirmOpen = false"
+    />
   </div>
 </template>

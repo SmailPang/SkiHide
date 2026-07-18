@@ -44,6 +44,11 @@ pub fn cleanup_cache(options: &CacheCleanupOptions) -> CacheCleanupReport {
         clear_app_cache(&mut report);
     }
 
+    if options.log_files {
+        report.selected += 1;
+        clear_log_files(&mut report);
+    }
+
     if options.recycle_bin {
         report.selected += 1;
         let flags = SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI | SHERB_NOSOUND;
@@ -96,6 +101,38 @@ fn clear_app_cache(report: &mut CacheCleanupReport) {
         );
     } else {
         report.failed += 1;
+    }
+}
+
+fn clear_log_files(report: &mut CacheCleanupReport) {
+    let Ok(current_dir) = env::current_dir() else {
+        report.failed += 1;
+        return;
+    };
+    let logs_dir = current_dir.join("logs");
+    if !logs_dir.exists() {
+        return;
+    }
+    let Ok(entries) = fs::read_dir(logs_dir) else {
+        report.failed += 1;
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
+            continue;
+        };
+        if name.eq_ignore_ascii_case("latest.log") {
+            continue;
+        }
+        let is_log = path
+            .extension()
+            .and_then(|value| value.to_str())
+            .is_some_and(|value| value.eq_ignore_ascii_case("log"));
+        if is_log {
+            clear_path(&path, report);
+        }
     }
 }
 

@@ -389,6 +389,9 @@ fn format_cache_selections(options: &CacheCleanupOptions) -> String {
     if options.app_cache {
         items.push("应用缓存");
     }
+    if options.log_files {
+        items.push("SkiHide 历史日志");
+    }
     if options.recycle_bin {
         items.push("回收站残留");
     }

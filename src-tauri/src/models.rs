@@ -125,6 +125,7 @@ pub struct CacheCleanupOptions {
     pub thumbnail_cache: bool,
     pub app_cache: bool,
     pub recycle_bin: bool,
+    pub log_files: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]

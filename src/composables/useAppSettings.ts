@@ -186,7 +186,7 @@ export function useAppSettings(opts: {
       nextDownloadSource === 'mirror_chan' && !mirrorChanSdk.value.trim() ? 'cnb' : nextDownloadSource;
 
     if (nextUpdateChannel === 'beta') {
-      if (nextUpdateSource === 'skihide' || nextUpdateSource === 'cloudflare') updateSource.value = 'mirror_chan';
+      if (nextUpdateSource === 'skihide') updateSource.value = 'mirror_chan';
       downloadSource.value = normalizedDownloadSource;
     } else {
       downloadSource.value = normalizedDownloadSource;
@@ -315,7 +315,7 @@ export function useAppSettings(opts: {
   }
   function selectUpdateChannel(value: 'stable' | 'beta') {
     updateChannel.value = value;
-    if (value === 'beta' && (updateSource.value === 'skihide' || updateSource.value === 'cloudflare')) updateSource.value = 'mirror_chan';
+    if (value === 'beta' && updateSource.value === 'skihide') updateSource.value = 'mirror_chan';
   }
 
   return {

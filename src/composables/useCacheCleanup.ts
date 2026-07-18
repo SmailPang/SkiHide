@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useI18n } from 'vue-i18n';
 import type { CacheCleanupOptions, CacheCleanupReport } from '../types';
@@ -6,6 +6,10 @@ import type { NoticeType } from './useNotify';
 
 type NotifyFn = (options: { title: string; content?: string; type: NoticeType }) => void;
 
+const cacheSelectionKeys = [
+  'systemCache', 'tempFiles', 'thumbnailCache', 'appCache', 'logFiles', 'recycleBin',
+
+] as const;
 export function useCacheCleanup(notify: NotifyFn) {
   const { t } = useI18n();
 
@@ -15,9 +19,21 @@ export function useCacheCleanup(notify: NotifyFn) {
     thumbnailCache: false,
     appCache: false,
     recycleBin: false,
+    logFiles: false,
   });
   const cacheCleanupRunning = ref(false);
 
+  const cacheAllSelected = computed(() =>
+    cacheSelectionKeys.every((key) => cacheSelections.value[key]),
+  );
+  const hasCacheSelection = computed(() =>
+    cacheSelectionKeys.some((key) => cacheSelections.value[key]),
+  );
+
+  function toggleAllCacheSelections() {
+    const nextValue = !cacheAllSelected.value;
+    for (const key of cacheSelectionKeys) cacheSelections.value[key] = nextValue;
+  }
   function toggleCacheSelection(key: keyof typeof cacheSelections.value) {
     cacheSelections.value[key] = !cacheSelections.value[key];
   }
@@ -29,6 +45,7 @@ export function useCacheCleanup(notify: NotifyFn) {
       temp_files: cacheSelections.value.tempFiles,
       thumbnail_cache: cacheSelections.value.thumbnailCache,
       app_cache: cacheSelections.value.appCache,
+      log_files: cacheSelections.value.logFiles,
       recycle_bin: cacheSelections.value.recycleBin,
     };
     if (!Object.values(options).some(Boolean)) {
@@ -51,5 +68,13 @@ export function useCacheCleanup(notify: NotifyFn) {
     }
   }
 
-  return { cacheSelections, cacheCleanupRunning, toggleCacheSelection, runCacheCleanup };
+  return {
+    cacheSelections,
+    cacheCleanupRunning,
+    cacheAllSelected,
+    hasCacheSelection,
+    toggleCacheSelection,
+    toggleAllCacheSelections,
+    runCacheCleanup,
+  };
 }

@@ -132,7 +132,7 @@ const fontFamilySelectOptions = computed(() => {
 
 const availableUpdateSourceOptions = computed(() =>
   props.updateChannel === 'beta'
-    ? updateSourceOptionValues.filter((o) => o !== 'skihide' && o !== 'cloudflare')
+    ? updateSourceOptionValues.filter((o) => o !== 'skihide')
     : [...updateSourceOptionValues],
 );
 

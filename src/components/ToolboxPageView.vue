@@ -23,8 +23,10 @@ const props = defineProps<{
     thumbnailCache: boolean;
     appCache: boolean;
     recycleBin: boolean;
+    logFiles: boolean;
   };
   cacheCleanupRunning: boolean;
+  cacheAllSelected: boolean;
   appVersion: string;
 }>();
 
@@ -34,7 +36,8 @@ const emit = defineEmits<{
   'memory-interval-input': [event: Event];
   'finalize-memory-interval': [];
   'select-memory-unit': [unit: 'seconds' | 'minutes' | 'hours'];
-  'toggle-cache-selection': [key: 'systemCache' | 'tempFiles' | 'thumbnailCache' | 'appCache' | 'recycleBin'];
+  'toggle-cache-selection': [key: 'systemCache' | 'tempFiles' | 'thumbnailCache' | 'appCache' | 'logFiles' | 'recycleBin'];
+  'toggle-cache-all': [];
   'run-cache-cleanup': [];
   'open-update-dialog': [];
   'open-danger-dialog': [];
@@ -273,10 +276,12 @@ onBeforeUnmount(() => {
             <div v-if="activeToolboxCard === 'cache'" class="toolbox-action-detail">
               <div class="toolbox-setting-block" @click.stop>
                 <span class="toolbox-setting-label">{{ t('toolbox.cacheSelectLabel') }}</span>
+                <label class="toolbox-check-row" @click.stop><input :checked="cacheAllSelected" class="toolbox-check-input" type="checkbox" @change="emit('toggle-cache-all')" /><span class="toolbox-check-box" /><span class="toolbox-check-label">{{ t('toolbox.selectAll') }}</span></label>
                 <label class="toolbox-check-row" @click.stop><input :checked="cacheSelections.systemCache" class="toolbox-check-input" type="checkbox" @change="emit('toggle-cache-selection', 'systemCache')" /><span class="toolbox-check-box" /><span class="toolbox-check-label">{{ t('toolbox.systemCache') }}</span></label>
                 <label class="toolbox-check-row" @click.stop><input :checked="cacheSelections.tempFiles" class="toolbox-check-input" type="checkbox" @change="emit('toggle-cache-selection', 'tempFiles')" /><span class="toolbox-check-box" /><span class="toolbox-check-label">{{ t('toolbox.tempFiles') }}</span></label>
                 <label class="toolbox-check-row" @click.stop><input :checked="cacheSelections.thumbnailCache" class="toolbox-check-input" type="checkbox" @change="emit('toggle-cache-selection', 'thumbnailCache')" /><span class="toolbox-check-box" /><span class="toolbox-check-label">{{ t('toolbox.thumbnailCache') }}</span></label>
                 <label class="toolbox-check-row" @click.stop><input :checked="cacheSelections.appCache" class="toolbox-check-input" type="checkbox" @change="emit('toggle-cache-selection', 'appCache')" /><span class="toolbox-check-box" /><span class="toolbox-check-label">{{ t('toolbox.appCache') }}</span></label>
+                <label class="toolbox-check-row" @click.stop><input :checked="cacheSelections.logFiles" class="toolbox-check-input" type="checkbox" @change="emit('toggle-cache-selection', 'logFiles')" /><span class="toolbox-check-box" /><span class="toolbox-check-label">{{ t('toolbox.logFiles') }}</span></label>
                 <label class="toolbox-check-row" @click.stop><input :checked="cacheSelections.recycleBin" class="toolbox-check-input" type="checkbox" @change="emit('toggle-cache-selection', 'recycleBin')" /><span class="toolbox-check-box" /><span class="toolbox-check-label">{{ t('toolbox.recycleBin') }}</span></label>
                 <button class="toolbox-action-button" type="button" :disabled="cacheCleanupRunning" @click.stop="emit('run-cache-cleanup')">
                   {{ cacheCleanupRunning ? t('toolbox.cleaning') : t('toolbox.runNow') }}
