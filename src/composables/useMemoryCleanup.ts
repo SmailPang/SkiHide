@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useI18n } from 'vue-i18n';
-import type { MemoryAutoCleanupScheduleLog, MemoryCleanupReport, MemoryCleanupRequest } from '../types';
+import type { AppConfig, MemoryAutoCleanupScheduleLog, MemoryCleanupReport, MemoryCleanupRequest } from '../types';
 import type { NoticeType } from './useNotify';
 
 type NotifyFn = (options: { title: string; content?: string; type: NoticeType }) => void;
@@ -55,6 +55,33 @@ export function useMemoryCleanup(notify: NotifyFn) {
     void invoke('log_memory_auto_cleanup_schedule', { settings });
   }
 
+  function persistMemoryCleanupConfig() {
+    const parsed = Number(memoryCleanupInterval.value);
+    const intervalValue = Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
+    void invoke('update_config', {
+      patch: {
+        memory_auto_cleanup: memoryAutoCleanup.value,
+        memory_cleanup_interval_value: intervalValue,
+        memory_cleanup_interval_unit: memoryCleanupUnit.value,
+      },
+    }).catch((error: unknown) => {
+      notify({ title: t('toolbox.memoryTitle'), content: String(error), type: 'false' });
+    });
+  }
+
+  function applyMemoryCleanupConfig(config: AppConfig) {
+    memoryAutoCleanup.value = Boolean(config.memory_auto_cleanup);
+    const intervalValue = Number(config.memory_cleanup_interval_value);
+    memoryCleanupInterval.value =
+      Number.isFinite(intervalValue) && intervalValue > 0 ? String(Math.floor(intervalValue)) : '5';
+    const unit = config.memory_cleanup_interval_unit;
+    memoryCleanupUnit.value =
+      unit === 'seconds' || unit === 'minutes' || unit === 'hours'
+        ? (unit as 'seconds' | 'minutes' | 'hours')
+        : 'minutes';
+    scheduleMemoryCleanup();
+  }
+
   async function runMemoryCleanup(isAutoTrigger = false) {
     if (memoryCleanupRunning.value) return;
     if (isAutoTrigger && memoryCleanupIntervalInvalid.value) return;
@@ -94,6 +121,7 @@ export function useMemoryCleanup(notify: NotifyFn) {
     }
     scheduleMemoryCleanup();
     logAutoCleanupSchedule();
+    persistMemoryCleanupConfig();
   }
 
   function handleMemoryIntervalInput(event: Event) {
@@ -109,6 +137,7 @@ export function useMemoryCleanup(notify: NotifyFn) {
     }
     scheduleMemoryCleanup();
     logAutoCleanupSchedule();
+    persistMemoryCleanupConfig();
   }
 
   function selectMemoryCleanupUnit(unit: 'seconds' | 'minutes' | 'hours') {
@@ -116,6 +145,7 @@ export function useMemoryCleanup(notify: NotifyFn) {
     memoryCleanupUnit.value = unit;
     scheduleMemoryCleanup();
     logAutoCleanupSchedule();
+    persistMemoryCleanupConfig();
   }
 
   return {
@@ -131,5 +161,6 @@ export function useMemoryCleanup(notify: NotifyFn) {
     handleMemoryIntervalInput,
     finalizeMemoryIntervalInput,
     selectMemoryCleanupUnit,
+    applyMemoryCleanupConfig,
   };
 }

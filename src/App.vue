@@ -472,7 +472,10 @@ onMounted(async () => {
 
   try {
     appVersion.value = await getVersion();
-    await settings.loadConfigFromBackend();
+    const appConfig = await settings.loadConfigFromBackend();
+
+    // Restore memory auto-cleanup settings (enabled flag + interval) from backend config
+    memory.applyMemoryCleanupConfig(appConfig);
 
     // Sync refs loaded by loadConfigFromBackend into useListenSettings
     listenSettings.listenHotkey.value = settings.listenHotkeyRef.value;

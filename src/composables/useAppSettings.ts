@@ -200,6 +200,7 @@ export function useAppSettings(opts: {
     listenHotkeyRef.value = config.hotkey ?? '';
     listenMouseSideButtonRef.value = Boolean(config.mouse_side_button_listener);
     privacyConsentAccepted.value = Boolean(config.privacy_consent);
+    return config;
   }
 
   // These are cross-composable refs that need to be readable by saveSettings.

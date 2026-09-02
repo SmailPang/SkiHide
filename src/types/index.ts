@@ -25,6 +25,9 @@ export interface AppConfig {
   mouse_side_button_listener: boolean;
   privacy_consent: boolean;
   auto_listen_on_startup: boolean;
+  memory_auto_cleanup: boolean;
+  memory_cleanup_interval_value: number;
+  memory_cleanup_interval_unit: 'seconds' | 'minutes' | 'hours' | string;
 }
 
 export interface ConfigUpdate {
@@ -47,6 +50,9 @@ export interface ConfigUpdate {
   mouse_side_button_listener?: boolean | null;
   privacy_consent?: boolean | null;
   auto_listen_on_startup?: boolean | null;
+  memory_auto_cleanup?: boolean | null;
+  memory_cleanup_interval_value?: number | null;
+  memory_cleanup_interval_unit?: 'seconds' | 'minutes' | 'hours' | string | null;
 }
 
 export interface LogEntry {

@@ -193,6 +193,22 @@ impl AppState {
             config.auto_listen_on_startup = auto_listen_on_startup;
         }
 
+        if let Some(memory_auto_cleanup) = patch.memory_auto_cleanup {
+            config.memory_auto_cleanup = memory_auto_cleanup;
+        }
+
+        if let Some(interval_value) = patch.memory_cleanup_interval_value {
+            if interval_value > 0 {
+                config.memory_cleanup_interval_value = interval_value;
+            }
+        }
+
+        if let Some(interval_unit) = patch.memory_cleanup_interval_unit {
+            if matches!(interval_unit.as_str(), "seconds" | "minutes" | "hours") {
+                config.memory_cleanup_interval_unit = interval_unit;
+            }
+        }
+
         if *config == before {
             return Ok(config.clone());
         }
@@ -1035,8 +1051,15 @@ pub fn run() {
         )
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
+                let app = window.app_handle();
+                // 退出流程中（exit_app / 托盘退出 / app.exit）放行窗口销毁，
+                // 否则 WebView2 的 Chrome_WidgetWin_0 窗口残留会导致
+                // UnregisterClass 失败（ERROR_CLASS_HAS_WINDOWS = 1412）。
+                if is_app_exiting(&app) {
+                    return;
+                }
                 api.prevent_close();
-                shutdown_then_exit(&window.app_handle());
+                shutdown_then_exit(&app);
             }
         })
         .setup(|app| {

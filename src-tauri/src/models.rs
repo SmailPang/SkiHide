@@ -29,6 +29,9 @@ pub struct AppConfig {
     pub mouse_side_button_listener: bool,
     pub privacy_consent: bool,
     pub auto_listen_on_startup: bool,
+    pub memory_auto_cleanup: bool,
+    pub memory_cleanup_interval_value: u32,
+    pub memory_cleanup_interval_unit: String,
 }
 
 impl Default for AppConfig {
@@ -53,6 +56,9 @@ impl Default for AppConfig {
             mouse_side_button_listener: false,
             privacy_consent: false,
             auto_listen_on_startup: false,
+            memory_auto_cleanup: false,
+            memory_cleanup_interval_value: 5,
+            memory_cleanup_interval_unit: "minutes".to_string(),
         }
     }
 }
@@ -78,6 +84,9 @@ pub struct ConfigUpdate {
     pub mouse_side_button_listener: Option<bool>,
     pub privacy_consent: Option<bool>,
     pub auto_listen_on_startup: Option<bool>,
+    pub memory_auto_cleanup: Option<bool>,
+    pub memory_cleanup_interval_value: Option<u32>,
+    pub memory_cleanup_interval_unit: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

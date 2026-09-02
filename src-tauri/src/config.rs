@@ -34,6 +34,9 @@ const VALUE_AUTO_CHECK_UPDATES: &str = "AutoCheckUpdates";
 const VALUE_MOUSE_SIDE_BUTTON_LISTENER: &str = "MouseSideButtonListener";
 const VALUE_PRIVACY_CONSENT: &str = "PrivacyConsent";
 const VALUE_AUTO_LISTEN_ON_STARTUP: &str = "AutoListenOnStartup";
+const VALUE_MEMORY_AUTO_CLEANUP: &str = "MemoryAutoCleanup";
+const VALUE_MEMORY_CLEANUP_INTERVAL_VALUE: &str = "MemoryCleanupIntervalValue";
+const VALUE_MEMORY_CLEANUP_INTERVAL_UNIT: &str = "MemoryCleanupIntervalUnit";
 
 struct RegistryKey(HKEY);
 
@@ -119,6 +122,19 @@ pub fn load_config() -> Result<AppConfig, String> {
     }
     if let Some(auto_listen_on_startup) = read_bool_value(key.raw(), VALUE_AUTO_LISTEN_ON_STARTUP)? {
         config.auto_listen_on_startup = auto_listen_on_startup;
+    }
+    if let Some(memory_auto_cleanup) = read_bool_value(key.raw(), VALUE_MEMORY_AUTO_CLEANUP)? {
+        config.memory_auto_cleanup = memory_auto_cleanup;
+    }
+    if let Some(interval_value) = read_u32_value(key.raw(), VALUE_MEMORY_CLEANUP_INTERVAL_VALUE)? {
+        if interval_value > 0 {
+            config.memory_cleanup_interval_value = interval_value;
+        }
+    }
+    if let Some(interval_unit) = read_string_value(key.raw(), VALUE_MEMORY_CLEANUP_INTERVAL_UNIT)? {
+        if matches!(interval_unit.as_str(), "seconds" | "minutes" | "hours") {
+            config.memory_cleanup_interval_unit = interval_unit;
+        }
     }
 
     save_config(&config)?;
@@ -207,6 +223,17 @@ pub fn save_config(config: &AppConfig) -> Result<(), String> {
     )?;
     write_bool_value(key.raw(), VALUE_PRIVACY_CONSENT, config.privacy_consent)?;
     write_bool_value(key.raw(), VALUE_AUTO_LISTEN_ON_STARTUP, config.auto_listen_on_startup)?;
+    write_bool_value(key.raw(), VALUE_MEMORY_AUTO_CLEANUP, config.memory_auto_cleanup)?;
+    write_u32_value(
+        key.raw(),
+        VALUE_MEMORY_CLEANUP_INTERVAL_VALUE,
+        config.memory_cleanup_interval_value,
+    )?;
+    write_string_value(
+        key.raw(),
+        VALUE_MEMORY_CLEANUP_INTERVAL_UNIT,
+        &config.memory_cleanup_interval_unit,
+    )?;
 
     Ok(())
 }
@@ -406,6 +433,59 @@ fn read_bool_value(key: HKEY, name: &str) -> Result<Option<bool>, String> {
     Ok(Some(u32::from_le_bytes(bytes) != 0))
 }
 
+fn read_u32_value(key: HKEY, name: &str) -> Result<Option<u32>, String> {
+    let value_name = to_wide(name);
+    let mut value_type = REG_VALUE_TYPE(0);
+    let mut size = 0u32;
+    let query_size_status = unsafe {
+        RegQueryValueExW(
+            key,
+            PCWSTR(value_name.as_ptr()),
+            None,
+            Some(&mut value_type),
+            None,
+            Some(&mut size),
+        )
+    };
+
+    if query_size_status == ERROR_FILE_NOT_FOUND {
+        return Ok(None);
+    }
+
+    if query_size_status != WIN32_ERROR(0) {
+        return Err(format!(
+            "failed querying registry value {} size: {}",
+            name, query_size_status.0
+        ));
+    }
+
+    if size < 4 {
+        return Ok(None);
+    }
+
+    let mut bytes = [0u8; 4];
+    let mut read_size = 4u32;
+    let query_status = unsafe {
+        RegQueryValueExW(
+            key,
+            PCWSTR(value_name.as_ptr()),
+            None,
+            Some(&mut value_type),
+            Some(bytes.as_mut_ptr()),
+            Some(&mut read_size),
+        )
+    };
+
+    if query_status != WIN32_ERROR(0) {
+        return Err(format!(
+            "failed reading registry value {}: {}",
+            name, query_status.0
+        ));
+    }
+
+    Ok(Some(u32::from_le_bytes(bytes)))
+}
+
 fn write_string_value(key: HKEY, name: &str, value: &str) -> Result<(), String> {
     let value_name = to_wide(name);
     let data_wide = to_wide(value);
@@ -470,6 +550,28 @@ fn write_bool_value(key: HKEY, name: &str, value: bool) -> Result<(), String> {
     if status != WIN32_ERROR(0) {
         return Err(format!(
             "failed writing registry bool value {}: {}",
+            name, status.0
+        ));
+    }
+    Ok(())
+}
+
+fn write_u32_value(key: HKEY, name: &str, value: u32) -> Result<(), String> {
+    let value_name = to_wide(name);
+    let bytes = value.to_le_bytes();
+    let status = unsafe {
+        RegSetValueExW(
+            key,
+            PCWSTR(value_name.as_ptr()),
+            None,
+            REG_DWORD,
+            Some(&bytes),
+        )
+    };
+
+    if status != WIN32_ERROR(0) {
+        return Err(format!(
+            "failed writing registry dword value {}: {}",
             name, status.0
         ));
     }
