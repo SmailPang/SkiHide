@@ -306,6 +306,7 @@ onBeforeUnmount(() => {
               <div class="toolbox-feedback-note" @click.stop>{{ t('toolbox.feedbackNotice') }}</div>
               <div class="toolbox-feedback-actions" @click.stop>
                 <button class="toolbox-feedback-button" type="button" @click.stop="openExternalUrl('https://github.com/SmailPang/SkiHide/issues')">{{ t('toolbox.feedbackIssues') }}</button>
+                <button class="toolbox-feedback-button" type="button" @click.stop="openExternalUrl('https://www.bilibili.com/video/BV1wkvaBmEZP')">{{ t('toolbox.feedbackGuide') }}</button>
               </div>
             </div>
           </Transition>
